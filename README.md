@@ -14,7 +14,6 @@ Modify "checkpoint_path" in `~/anaconda3/envs/scenerep/lib/python3.11/site-packa
 Then download the checkpoints [sam_vit_b_01ec64.pth](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth) to `~/scenerep/rosbag2dataset/sam`.
 
 (Optional) Install MobileSAM for realtime application: [MobileSAM](https://github.com/ChaoningZhang/MobileSAM)
-```
 
 ## Data Processing
 1. Prepare ROS bag
