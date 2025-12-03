@@ -21,7 +21,7 @@ from scipy.spatial import cKDTree
 import re
 import glob
 
-def auto_find_take_csv(dataset_dir, timestamps_file):
+def auto_find_take_csv(takes_dir, timestamps_file):
     """
     自动匹配 takes 文件夹中与 timestamps.txt 的 ros 时间最接近的 CSV 文件
     """
@@ -38,7 +38,6 @@ def auto_find_take_csv(dataset_dir, timestamps_file):
     print(f"[auto_find_take_csv] 第一帧 ROS 日期时间: {ros_datetime}")
 
     # 2. 遍历 takes/ 下的所有 CSV
-    takes_dir = TAKES_DIR
     csv_files = glob.glob(os.path.join(takes_dir, "*.csv"))
     if not csv_files:
         raise FileNotFoundError(f"未找到 takes 下的 CSV 文件：{takes_dir}")
@@ -128,43 +127,36 @@ def compute_mocap_start_time_from_releases(releases_path, ros_first_timestamp):
 
 
 
-# 路径配置
-DATASET_DIR = "/media/wby/6d811df4-bde7-479b-ab4c-679222653ea0/dataset_done/apple_1"  # 请替换为实际的数据集路径
-EVAL_FILE = os.path.join(DATASET_DIR, "eval", "object_2.txt") # 请替换为实际的评估文件名
-EVAL_CAM_FILE = os.path.join(DATASET_DIR, "eval", "camera.txt")
-SEGMENT_FILE = os.path.join(DATASET_DIR, "eval", "segments.json")
-BASE_FILE = os.path.join(DATASET_DIR, "pose_txt", "base_pose.txt")
-TIMESTAMP_FILE = os.path.join(DATASET_DIR, "pose_txt", "timestamps.txt")
-# MOCAP_START_FILE = os.path.join(DATASET_DIR, "mocap_start.txt")
-# CSV_FILE = os.path.join(DATASET_DIR, "Take 2025-09-23 06.01.55 PM.csv")  # 请替换为实际的CSV文件名
-TAKES_DIR = "/media/wby/6d811df4-bde7-479b-ab4c-679222653ea0/takes_cleaned_2"
-CSV_FILE = auto_find_take_csv(TAKES_DIR, TIMESTAMP_FILE)
-RELEASES_FILE = "/media/wby/6d811df4-bde7-479b-ab4c-679222653ea0/takes/releases.txt"
-
-
-DETECTION_DIR = os.path.join(DATASET_DIR, "detection_h")
-OBJECT_NAME = "apple" # 请替换为实际的物体名称
-OBJECT_ID = 2 # 请替换为实际的物体ID
-MOCAP_ROBOT_FILE = os.path.join("transform_matrix.txt") 
-T_HB_FILE = os.path.join("transform_hb_matrix.txt")
-
-
-# ADD和ADD-S的阈值（单位：米）
-ADD_THRESHOLD = 0.05
-ADDS_THRESHOLD = 0.05
-
-
 class PoseEvaluator:
-    def __init__(self):
-        # 读取动捕开始时间
-        # self.mocap_start_time = self.read_mocap_start_time()
+    def __init__(self, dataset_dir):
+        # 设置所有路径和配置变量为实例变量
+        self.dataset_dir = dataset_dir
+        self.eval_file = os.path.join(self.dataset_dir, "eval", "object_2.txt")
+        self.eval_cam_file = os.path.join(self.dataset_dir, "eval", "camera.txt")
+        self.segment_file = os.path.join(self.dataset_dir, "eval", "segments.json")
+        self.base_file = os.path.join(self.dataset_dir, "pose_txt", "base_pose.txt")
+        self.timestamp_file = os.path.join(self.dataset_dir, "pose_txt", "timestamps.txt")
+        self.takes_dir = "/media/wby/6d811df4-bde7-479b-ab4c-679222653ea0/takes_cleaned_2"
+        self.releases_file = "/media/wby/6d811df4-bde7-479b-ab4c-679222653ea0/takes/releases.txt"
+        self.detection_dir = os.path.join(self.dataset_dir, "detection_h")
+        self.object_name = "apple"
+        self.object_id = 2
+        self.mocap_robot_file = os.path.join("transform_matrix.txt")
+        
+        # ADD和ADD-S的阈值（单位：米）
+        self.add_threshold = 0.05
+        self.adds_threshold = 0.05
+        
         # 读取 timestamps.txt 第一行
-        with open(TIMESTAMP_FILE, "r") as f:
+        with open(self.timestamp_file, "r") as f:
             line = f.readline().strip().split()
         ros_first_timestamp = (int(line[1]), int(line[2]))
+        
+        # 自动查找匹配的CSV文件
+        self.csv_file = auto_find_take_csv(self.takes_dir, self.timestamp_file)
 
         self.mocap_start_time = compute_mocap_start_time_from_releases(
-            RELEASES_FILE,
+            self.releases_file,
             ros_first_timestamp
         )
 
@@ -187,7 +179,7 @@ class PoseEvaluator:
         print(f"加载了 {len(self.estimated_poses)} 个估计姿态和 {len(self.evaluation_segments)} 个评估段")
         
         # 坐标系转换矩阵（第一帧初始化）
-        self.mocap_robot = np.loadtxt(MOCAP_ROBOT_FILE)
+        self.mocap_robot = np.loadtxt(self.mocap_robot_file)
         self.mocap_robot = np.linalg.inv(self.mocap_robot)
         self.obj_transformation = None
         self.camera_transformation = None
@@ -198,7 +190,8 @@ class PoseEvaluator:
         self.o3d_geoms = {}  # hold geometries for world, gt_cam, gt_obj, est_obj
         self.o3d_last = {}   # last transforms for incremental update
 
-        self.mocap_start_time_offset = self.find_mocap_start_time_offset()
+        # self.mocap_start_time_offset = self.find_mocap_start_time_offset()
+        self.mocap_start_time_offset = 0.13
     
     # def read_mocap_start_time(self):
     #     """读取动捕系统开始时间"""
@@ -285,7 +278,7 @@ class PoseEvaluator:
     def read_camera_poses(self):
         """读取相机位姿数据"""
         camera_poses = {}
-        with open(EVAL_CAM_FILE, 'r') as f:
+        with open(self.eval_cam_file, 'r') as f:
             lines = f.readlines()
             
         for line in lines:
@@ -308,7 +301,7 @@ class PoseEvaluator:
     def read_base_poses(self):
         """读取base位姿数据"""
         base_poses = {}
-        with open(BASE_FILE, 'r') as f:
+        with open(self.base_file, 'r') as f:
             lines = f.readlines()
             
         for line in lines:
@@ -335,7 +328,7 @@ class PoseEvaluator:
     def read_csv_data(self):
         """读取CSV文件中的动捕数据"""
         # 跳过前两行，没有表头
-        df = pd.read_csv(CSV_FILE, skiprows=2, header=None, low_memory=False)
+        df = pd.read_csv(self.csv_file, skiprows=2, header=None, low_memory=False)
         # df = pd.read_csv(
         #     CSV_FILE,
         #     skiprows=2,
@@ -361,9 +354,9 @@ class PoseEvaluator:
         segments.append(segment)
         
         # 读取分段信息
-        if os.path.exists(SEGMENT_FILE):
+        if os.path.exists(self.segment_file):
             try:
-                with open(SEGMENT_FILE, 'r') as f:
+                with open(self.segment_file, 'r') as f:
                     segments_data = json.load(f)
                 
                 # 从JSON解析分段
@@ -382,7 +375,7 @@ class PoseEvaluator:
         # 读取时间戳
         timestamps = {}
         try:
-            with open(TIMESTAMP_FILE, 'r') as f:
+            with open(self.timestamp_file, 'r') as f:
                 for line in f:
                     parts = line.strip().split()
                     if len(parts) >= 3:  # 帧号 秒 纳秒
@@ -390,14 +383,14 @@ class PoseEvaluator:
                         secs = int(parts[1])
                         nsecs = int(parts[2])
                         timestamps[frame_idx] = (secs, nsecs)
-            print(f"从 {TIMESTAMP_FILE} 读取到 {len(timestamps)} 个时间戳")
+            print(f"从 {self.timestamp_file} 读取到 {len(timestamps)} 个时间戳")
         except Exception as e:
             print(f"读取时间戳文件时出错: {e}")
             return {}, segments
         
         # 读取姿态数据
         try:
-            with open(EVAL_FILE, 'r') as f:
+            with open(self.eval_file, 'r') as f:
                 lines = f.readlines()
                 
             for line in lines:
@@ -429,7 +422,7 @@ class PoseEvaluator:
                 except (ValueError, IndexError) as e:
                     print(f"解析行 '{line}' 时出错: {e}")
             
-            print(f"从 {EVAL_FILE} 读取到 {len(estimated_poses)} 个姿态")
+            print(f"从 {self.eval_file} 读取到 {len(estimated_poses)} 个姿态")
         except Exception as e:
             print(f"读取姿态文件时出错: {e}")
         
@@ -550,19 +543,19 @@ class PoseEvaluator:
         
         for col in self.csv_data.columns:
             col_data = self.csv_data[col]
-            if (col_data == OBJECT_NAME).any() and (col_data == "Position").any() and (col_data == "X").any():
+            if (col_data == self.object_name).any() and (col_data == "Position").any() and (col_data == "X").any():
                 self.obj_cols['x'] = col
-            elif (col_data == OBJECT_NAME).any() and (col_data == "Position").any() and (col_data == "Y").any():
+            elif (col_data == self.object_name).any() and (col_data == "Position").any() and (col_data == "Y").any():
                 self.obj_cols['y'] = col
-            elif (col_data == OBJECT_NAME).any() and (col_data == "Position").any() and (col_data == "Z").any():
+            elif (col_data == self.object_name).any() and (col_data == "Position").any() and (col_data == "Z").any():
                 self.obj_cols['z'] = col
-            elif (col_data == OBJECT_NAME).any() and (col_data == "Rotation").any() and (col_data == "X").any():
+            elif (col_data == self.object_name).any() and (col_data == "Rotation").any() and (col_data == "X").any():
                 self.obj_cols['qx'] = col
-            elif (col_data == OBJECT_NAME).any() and (col_data == "Rotation").any() and (col_data == "Y").any():
+            elif (col_data == self.object_name).any() and (col_data == "Rotation").any() and (col_data == "Y").any():
                 self.obj_cols['qy'] = col
-            elif (col_data == OBJECT_NAME).any() and (col_data == "Rotation").any() and (col_data == "Z").any():
+            elif (col_data == self.object_name).any() and (col_data == "Rotation").any() and (col_data == "Z").any():
                 self.obj_cols['qz'] = col
-            elif (col_data == OBJECT_NAME).any() and (col_data == "Rotation").any() and (col_data == "W").any():
+            elif (col_data == self.object_name).any() and (col_data == "Rotation").any() and (col_data == "W").any():
                 self.obj_cols['qw'] = col
         
         print(f"找到的苹果位姿列: {self.obj_cols}")
@@ -572,9 +565,9 @@ class PoseEvaluator:
     def get_point_cloud(self, frame_idx, gt_cam_pose):
         """从深度图和掩码生成物体的点云"""
         # 构建文件路径
-        rgb_path = os.path.join(DATASET_DIR, "rgb", f"rgb_{frame_idx:06d}.png")
-        depth_path = os.path.join(DATASET_DIR, "depth", f"depth_{frame_idx:06d}.npy")
-        json_path = os.path.join(DETECTION_DIR, f"detection_{frame_idx:06d}_final.json")
+        rgb_path = os.path.join(self.dataset_dir, "rgb", f"rgb_{frame_idx:06d}.png")
+        depth_path = os.path.join(self.dataset_dir, "depth", f"depth_{frame_idx:06d}.npy")
+        json_path = os.path.join(self.detection_dir, f"detection_{frame_idx:06d}_final.json")
         
         # 检查文件是否存在
         if not all(os.path.exists(p) for p in [rgb_path, depth_path, json_path]):
@@ -589,7 +582,7 @@ class PoseEvaluator:
             
             obj_detection = None
             for det in detections:
-                if isinstance(det, dict) and det.get('object_id') == OBJECT_ID:
+                if isinstance(det, dict) and det.get('object_id') == self.object_id:
                     obj_detection = det
                     break
                     
@@ -827,67 +820,7 @@ class PoseEvaluator:
             height=720
         )
          
-    # def visualize_poses(self, est_poses, mocap_poses, save_path=None):
-    #     """
-    #     在3D中可视化两个姿态序列，XYZ 同尺度显示
-    #     """
-    #     fig = plt.figure(figsize=(10, 8))
-    #     ax = fig.add_subplot(111, projection="3d")
 
-    #     # 提取轨迹
-    #     est_traj = np.array([pose[:3, 3] for pose in est_poses])
-    #     mocap_traj = np.array([pose[:3, 3] for pose in mocap_poses])
-
-    #     # 绘制轨迹
-    #     ax.plot(est_traj[:, 0], est_traj[:, 1], est_traj[:, 2], 
-    #             'b-', label="Estimated Trajectory")
-    #     ax.plot(mocap_traj[:, 0], mocap_traj[:, 1], mocap_traj[:, 2], 
-    #             'r-', label="MoCap Trajectory")
-
-    #     # 绘制关键帧坐标系
-    #     def draw_axes(pose, ax, length=0.05):
-    #         origin = pose[:3, 3]
-    #         R = pose[:3, :3]
-    #         x_axis = origin + R[:, 0] * length
-    #         y_axis = origin + R[:, 1] * length
-    #         z_axis = origin + R[:, 2] * length
-    #         ax.plot([origin[0], x_axis[0]], [origin[1], x_axis[1]], [origin[2], x_axis[2]], 'r')
-    #         ax.plot([origin[0], y_axis[0]], [origin[1], y_axis[1]], [origin[2], y_axis[2]], 'g')
-    #         ax.plot([origin[0], z_axis[0]], [origin[1], z_axis[1]], [origin[2], z_axis[2]], 'b')
-
-    #     # 每隔 N 帧画一个坐标系
-    #     step = max(1, len(est_poses)//72)
-    #     for i in range(0, len(est_poses), step):
-    #         draw_axes(est_poses[i], ax, length=0.03)
-    #         draw_axes(mocap_poses[i], ax, length=0.03)
-
-    #     # 设置坐标轴标签
-    #     ax.set_xlabel("X [m]")
-    #     ax.set_ylabel("Y [m]")
-    #     ax.set_zlabel("Z [m]")
-    #     ax.set_title("Estimated vs MoCap Trajectories")
-    #     ax.legend()
-    #     ax.grid(True)
-
-    #     # === 保持等比例缩放 ===
-    #     all_points = np.vstack((est_traj, mocap_traj))
-    #     max_range = (all_points.max(axis=0) - all_points.min(axis=0)).max() / 2.0
-    #     mid_x = (all_points[:,0].max() + all_points[:,0].min()) / 2.0
-    #     mid_y = (all_points[:,1].max() + all_points[:,1].min()) / 2.0
-    #     mid_z = (all_points[:,2].max() + all_points[:,2].min()) / 2.0
-    #     ax.set_xlim(mid_x - max_range, mid_x + max_range)
-    #     ax.set_ylim(mid_y - max_range, mid_y + max_range)
-    #     ax.set_zlim(mid_z - max_range, mid_z + max_range)
-
-    #     # 如果 matplotlib 版本支持，可以直接用
-    #     try:
-    #         ax.set_box_aspect([1,1,1])  # 保证 x,y,z 比例相同
-    #     except:
-    #         pass
-
-    #     if save_path:
-    #         plt.savefig(save_path, dpi=300)
-    #     plt.show()
     def visualize_poses(self, est_poses, mocap_poses):
         """
         使用 Open3D 在 3D 中可视化两个姿态序列：
@@ -987,6 +920,7 @@ class PoseEvaluator:
             # 将动捕姿态转换到估计坐标系
             gt_obj_pose = self.mocap_robot @ mocap_obj_pose @ self.obj_transformation
             gt_cam_pose = self.mocap_robot @ mocap_cam_pose @ self.camera_transformation
+            est_cam_pose = self.camera_poses[frame_idx]
             # gt_obj_pose = self.mocap_robot @ mocap_obj_pose
             # gt_cam_pose = self.mocap_robot @ mocap_cam_pose
             # print(est_pose, "\n", self.mocap_robot @ mocap_obj_pose, "\n", gt_obj_pose)
@@ -1005,6 +939,9 @@ class PoseEvaluator:
                 continue
             est_poses.append(est_pose)
             mocap_poses.append(gt_obj_pose)
+
+            # est_pose = np.linalg.inv(est_cam_pose) @ est_pose
+            # gt_obj_pose = np.linalg.inv(gt_cam_pose) @ gt_obj_pose
             
             # 将点云转换到两个姿态下
             points_est = self.transform_points(point_cloud, est_pose @ np.linalg.inv(gt_cam_pose))
@@ -1020,9 +957,9 @@ class PoseEvaluator:
             results['adds_values'].append(adds_value)
             results['total_frames'] += 1
             
-            if add_value < ADD_THRESHOLD:
+            if add_value < self.add_threshold:
                 results['add_correct'] += 1
-            if adds_value < ADDS_THRESHOLD:
+            if adds_value < self.adds_threshold:
                 results['adds_correct'] += 1
             
             print(f"帧 {frame_idx}: ADD={add_value:.4f}, ADD-S={adds_value:.4f}")
@@ -1034,7 +971,7 @@ class PoseEvaluator:
             results['add_mean'] = np.mean(results['add_values'])
             results['adds_mean'] = np.mean(results['adds_values'])
 
-        # self.visualize_poses(est_poses, mocap_poses)
+        self.visualize_poses(est_poses, mocap_poses)
         
         return results, add_sum
         
@@ -1050,8 +987,29 @@ class PoseEvaluator:
         return transformed_points[:, :3]
     
         
-    def evaluate(self):
+    def evaluate(self, object_id, object_name):
         """评估所有时间段"""
+        # 更新对象ID和名称
+        self.object_id = object_id
+        self.object_name = object_name
+        
+        # 更新评估文件路径以匹配新的对象ID
+        self.eval_file = os.path.join(self.dataset_dir, "eval", f"object_{object_id}.txt")
+        
+        # 清除对象位姿列的缓存，因为对象名称可能已改变
+        if hasattr(self, 'obj_cols'):
+            delattr(self, 'obj_cols')
+        
+        # 重置转换矩阵标志，以便基于新对象重新计算
+        self.first_flag = False
+        self.obj_transformation = None
+        self.camera_transformation = None
+        
+        # 重新读取估计的姿态数据，因为eval_file可能已改变
+        self.estimated_poses, self.evaluation_segments = self.read_estimated_poses()
+        print(f"评估对象: {object_name} (ID: {object_id})")
+        print(f"使用评估文件: {self.eval_file}")
+        
         all_results = []
         
         for i, segment in enumerate(self.evaluation_segments):
@@ -1098,15 +1056,18 @@ class PoseEvaluator:
             
     def save_results(self, results):
         """保存评估结果到文件"""
-        output_file = os.path.join(DATASET_DIR, "eval", "evaluation_results.json")
+        output_file = os.path.join(self.dataset_dir, "eval", "evaluation_results.json")
         with open(output_file, 'w') as f:
             json.dump(results, f, indent=2)
         print(f"结果已保存到 {output_file}")
 
 
 def main():
-    evaluator = PoseEvaluator()
-    evaluator.evaluate()
+    dataset_dir = "/media/wby/6d811df4-bde7-479b-ab4c-679222653ea0/dataset_done/apple_1"  # 请替换为实际的数据集路径
+    evaluator = PoseEvaluator(dataset_dir)
+    object_id = 2
+    object_name = "apple"
+    evaluator.evaluate(object_id, object_name)
 
 if __name__ == "__main__":
     main()
