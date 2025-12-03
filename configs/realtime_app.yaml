@@ -1,0 +1,88 @@
+# Realtime TSDF Fusion App 配置文件示例
+# 适用于 version_realtime/realtime_app.py
+
+# ROS 话题和坐标系配置
+workspace: ./work_space
+
+ros:
+  camera_frame: "head_camera_rgb_optical_frame"  # 相机坐标系名称
+  world_frame: "map"                             # 世界坐标系名称
+  rgb_topic: "/head_camera/rgb/image_raw/compressed"      # RGB图像话题
+  depth_topic: "/head_camera/depth_registered/image_raw"  # 深度图像话题
+  ee_topic: "/end_effector_pose"                         # 末端执行器位姿话题
+
+# 相机内参配置
+camera:
+  fx: 554.3827    # 焦距x
+  fy: 554.3827    # 焦距y
+  cx: 320.5       # 主点x
+  cy: 240.5       # 主点y
+
+# 掩码处理配置
+mask:
+  # 掩码提取方法 (当前版本中get_detections函数返回空列表，但保留配置结构)
+  method: "json"  # 可选: "color" 或 "json"
+  
+  # JSON检测模式参数
+  score_threshold: 0.0      # 检测置信度阈值
+  
+  # 图像处理参数
+  clear_bottom_ratio: 0.1   # 清除画面最下方的比例 (0.1表示10%)
+  shrink_mask: true         # 是否缩小mask以避免桌面噪声
+  shrink_kernel_size: 7     # 腐蚀核大小 (奇数，越大缩小越多)
+  dilate_kernel_size: 7     # 膨胀核大小
+
+# TSDF融合配置
+tsdf:
+  # 体素大小配置
+  bg_voxel_size: 0.05           # 背景TSDF体素大小 (米)
+  object_voxel_size: 0.002       # 物体TSDF体素大小 (米)
+  max_distance_thresh: 0.03     # 最大距离阈值 (米)
+  
+  # 位姿变化阈值 (用于跳过融合)
+  pose_threshold:
+    max_rotation: 0.1           # 最大旋转角度 (弧度)
+    max_translation: 0.05       # 最大平移距离 (米)
+  
+  # 相机位姿优化配置
+  pose_refine:
+    enabled: true              # 是否启用相机位姿优化
+    min_objects: 2              # 优化所需的最少物体数量
+    sample_step: 2              # 采样步长
+    voxel_size: 0.002           # 优化用体素大小
+    distance_thresh: 0.03       # 距离阈值
+    max_iter: 30                # 最大迭代次数
+    min_points_each: 20         # 每个物体的最少点数
+    min_points_total: 1000      # 总的最少点数
+    min_fitness: 0.2            # 最小适应度
+  
+  # 背景修复配置
+  inpaint:
+    enabled: true              # 是否启用背景修复
+  
+  # 网格过滤配置
+  mesh_filter:
+    enabled: true              # 是否启用网格过滤
+    trim_ratio: 0.1            # 修剪比例
+
+# 可视化配置
+visualization:
+  # 渲染器配置
+  use_raymond_lighting: true    # 使用Raymond光照
+  viewport_size: [1280, 720]    # 视口大小 [宽度, 高度]
+  
+  # 边界框显示配置
+  show_bounding_boxes: true     # 显示物体边界框
+  bbox_color: [0.0, 1.0, 0.0, 1.0]  # 边界框颜色 [R, G, B, A]
+  bbox_edge_thickness: 0.002    # 边界框边缘厚度
+  bbox_style: "wireframe"       # 边界框样式: "wireframe" 或 "solid"
+  
+  # 位姿轴显示配置
+  show_object_poses: true       # 显示物体位姿轴
+  pose_axis_length: 0.05        # 位姿轴长度
+
+# 机器人状态检测配置 (硬编码在代码中，但可以添加配置)
+robot_state:
+  finger_distance_threshold: 0.005  # 手指距离变化阈值 (米)
+  grasp_box_size: [0.1, 0.1, 0.08]  # 抓取检测框尺寸 [长, 宽, 高] (米)
+  min_points_in_grasp_box: 1         # 抓取框内最少点数阈值

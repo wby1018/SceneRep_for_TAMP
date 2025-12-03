@@ -1,0 +1,95 @@
+# data_demo.py 配置文件
+
+# 数据集路径
+dataset:
+  path: "/home/zhy/rosbag_to_dataset/datasets/data_my_robot_data"
+
+# 状态区间定义（有序列表，可重复）
+# 格式: (start, end, state, obj_id_in_ee)
+state_ranges:
+  - [0, 364, "idle"]
+  - [365, 369, "grasping"]
+  - [370, 599, "holding"]
+  - [600, 605, "releasing"]
+  - [606, 647, "idle"]
+
+
+# 掩码提取配置
+mask:
+  # 提取方法: "color" 或 "json"
+  method: "json"
+  
+  # color模式参数
+  color_map:
+    milkbox: [0, 255, 0]  # 根据实际数据集调整
+  tolerance: 80
+  
+  # json模式参数
+  detection_dir: "/home/zhy/rosbag_to_dataset/datasets/data_my_robot_data/detection_boxes"  # 检测结果目录
+  hungarian_dir: "/home/zhy/rosbag_to_dataset/datasets/data_my_robot_data/detection_h"
+  score_threshold: 0.0        # 检测置信度阈值
+
+  # 图像处理参数
+  clear_bottom_ratio: 0.3     # 清除画面最下方的比例（0.1表示10%）
+  shrink_mask: true            # 是否缩小mask以避免桌面噪声
+  shrink_kernel_size: 11        # 腐蚀核大小（奇数，越大缩小越多）
+  dilate_kernel_size: 19  # 或任何你需要的值
+
+# 相机内参
+camera:
+  fx: 554.3827
+  fy: 554.3827
+  cx: 320.5
+  cy: 240.5
+
+# TSDF参数
+tsdf:
+  bg_voxel_size: 0.03
+  object_voxel_size: 0.003
+  inpaint:
+    enabled: true
+    depth_iters: 5       # 深度填充迭代次数
+    kernel_size: 3       # 深度均值核大小（奇数）
+    color_radius: 3      # 颜色修补半径
+    color_method: telea  # telea 或 ns
+
+  pose_refine:
+    enabled: false
+    min_objects: 2
+    sample_step: 2
+    voxel_size: 0.02
+    distance_thresh: 0.03
+    max_iter: 30
+    min_points_each: 200
+    min_points_total: 1000
+    min_fitness: 0.2
+
+  pose_threshold:
+    max_rotation: 0.01      # 弧度，约5.7度
+    max_translation: 0.01  # 米，5cm
+
+  # Mesh过滤参数
+  mesh_filter:
+    enabled: false                    # 是否启用mesh过滤
+    method: "size"                   # 过滤方法: "count", "size", "distance"
+    min_vertices: 50                 # 最小顶点数（count方法）
+    min_size: 0.02                  # 最小包围盒尺寸（size方法，米）
+    max_distance: 0.5               # 最大距离（distance方法，米）
+
+# # 手部投影参数
+# hand_projection:
+#   xmin: -0.26
+#   xmax: 0.03
+#   xstep: 0.005
+#   ymin: -0.06
+#   ymax: 0.06
+#   ystep: 0.005
+#   zmin: -0.04
+#   zmax: 0.04
+#   zstep: 0.005
+#   dilate_px: 8
+
+# 可视化参数
+visualization:
+  viewport_size: [1024, 768]
+  use_raymond_lighting: true 

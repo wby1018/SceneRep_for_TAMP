@@ -1,0 +1,71 @@
+# data_demo.py 配置文件
+
+# 数据集路径
+dataset:
+  path: "/media/wby/6d811df4-bde7-479b-ab4c-679222653ea0/datasets"
+
+
+# 掩码提取配置
+mask:
+  # 提取方法: "color" 或 "json"
+  method: "json"
+  
+  # color模式参数
+  color_map:
+    milkbox: [0, 255, 0]  # 根据实际数据集调整
+  tolerance: 80
+  
+  # json模式参数
+  detection_dir: "detection_boxes"
+  hungarian_dir: "detection_h"
+
+  score_threshold: 0.0        # 检测置信度阈值
+
+  # 图像处理参数
+  clear_bottom_ratio: 0.3     # 清除画面最下方的比例（0.1表示10%）
+  shrink_mask: false            # 是否缩小mask以避免桌面噪声
+  shrink_kernel_size: 0       # 腐蚀核大小（奇数，越大缩小越多）
+  dilate_kernel_size: 19  # 或任何你需要的值
+
+# 相机内参
+camera:
+  fx: 554.3827
+  fy: 554.3827
+  cx: 320.5
+  cy: 240.5
+
+# TSDF参数
+tsdf:
+  bg_voxel_size: 0.03
+  object_voxel_size: 0.003
+  inpaint:
+    enabled: true
+    depth_iters: 5       # 深度填充迭代次数
+    kernel_size: 3       # 深度均值核大小（奇数）
+    color_radius: 3      # 颜色修补半径
+    color_method: telea  # telea 或 ns
+
+  pose_refine:
+    enabled: true
+    min_objects: 2
+    sample_step: 2
+    voxel_size: 0.001
+    distance_thresh: 0.03
+    max_iter: 30
+    min_points_each: 20
+    min_points_total: 100
+    min_fitness: 0.2
+
+  pose_threshold:
+    max_rotation: 0.01      # 弧度，约5.7度
+    max_translation: 0.01  # 米，5cm
+
+  # Mesh过滤参数
+  mesh_filter:
+    enabled: true                    # 是否启用mesh过滤
+    trim_ratio: 0.1
+
+# 可视化参数
+visualization:
+  viewport_size: [1024, 768]
+  use_raymond_lighting: true 
