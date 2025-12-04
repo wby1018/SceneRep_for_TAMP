@@ -193,13 +193,6 @@ class PoseEvaluator:
         # self.mocap_start_time_offset = self.find_mocap_start_time_offset()
         self.mocap_start_time_offset = 0.13
     
-    # def read_mocap_start_time(self):
-    #     """读取动捕系统开始时间"""
-    #     with open(MOCAP_START_FILE, 'r') as f:
-    #         time_str = f.read().strip()
-    #     dt = datetime.datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S.%f")
-    #     # 转换为Unix时间戳（秒）
-    #     return dt.timestamp()
     def _evaluate_offset(self, offset, segments_to_eval):
         """
         评估给定 offset 的总 add_sum（辅助函数，用于优化）
@@ -821,12 +814,14 @@ class PoseEvaluator:
         )
          
 
-    def visualize_poses(self, est_poses, mocap_poses):
+    def visualize_poses(self, est_poses, mocap_poses, gt_cam_poses=None, est_cam_poses=None):
         """
         使用 Open3D 在 3D 中可视化两个姿态序列：
-        - 蓝色折线：Estimated 轨迹
-        - 红色折线：MoCap 轨迹
-        - 每隔若干帧画一对坐标系（est & mocap）
+        - 蓝色折线：Estimated 物体轨迹
+        - 红色折线：MoCap 物体轨迹
+        - 青色折线：GT 相机轨迹
+        - 紫色折线：Estimated 相机轨迹
+        - 每隔若干帧画一对坐标系（est & mocap 物体，以及相机）
         """
         if len(est_poses) == 0 or len(mocap_poses) == 0:
             print("可视化失败：est_poses 或 mocap_poses 为空")
@@ -842,7 +837,7 @@ class PoseEvaluator:
         world_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1)
         # geometries.append(world_frame)
 
-        # ===== 1) 估计轨迹（蓝色折线） =====
+        # ===== 1) 估计物体轨迹（蓝色折线） =====
         est_lines = [[i, i + 1] for i in range(len(est_traj) - 1)]
         est_ls = o3d.geometry.LineSet()
         est_ls.points = o3d.utility.Vector3dVector(est_traj)
@@ -851,7 +846,7 @@ class PoseEvaluator:
         est_ls.colors = o3d.utility.Vector3dVector(est_color)
         geometries.append(est_ls)
 
-        # ===== 2) MoCap 轨迹（红色折线） =====
+        # ===== 2) MoCap 物体轨迹（红色折线） =====
         mocap_lines = [[i, i + 1] for i in range(len(mocap_traj) - 1)]
         mocap_ls = o3d.geometry.LineSet()
         mocap_ls.points = o3d.utility.Vector3dVector(mocap_traj)
@@ -860,25 +855,63 @@ class PoseEvaluator:
         mocap_ls.colors = o3d.utility.Vector3dVector(mocap_color)
         geometries.append(mocap_ls)
 
-        # ===== 3) 关键帧坐标系 =====
+        # ===== 3) GT 相机轨迹（青色折线） =====
+        if gt_cam_poses is not None and len(gt_cam_poses) > 0:
+            gt_cam_traj = np.array([pose[:3, 3] for pose in gt_cam_poses])
+            if len(gt_cam_traj) > 1:
+                gt_cam_lines = [[i, i + 1] for i in range(len(gt_cam_traj) - 1)]
+                gt_cam_ls = o3d.geometry.LineSet()
+                gt_cam_ls.points = o3d.utility.Vector3dVector(gt_cam_traj)
+                gt_cam_ls.lines = o3d.utility.Vector2iVector(gt_cam_lines)
+                gt_cam_color = np.array([[0.0, 1.0, 1.0] for _ in gt_cam_lines])  # 青色
+                gt_cam_ls.colors = o3d.utility.Vector3dVector(gt_cam_color)
+                geometries.append(gt_cam_ls)
+
+        # ===== 4) Estimated 相机轨迹（紫色折线） =====
+        if est_cam_poses is not None and len(est_cam_poses) > 0:
+            est_cam_traj = np.array([pose[:3, 3] for pose in est_cam_poses])
+            if len(est_cam_traj) > 1:
+                est_cam_lines = [[i, i + 1] for i in range(len(est_cam_traj) - 1)]
+                est_cam_ls = o3d.geometry.LineSet()
+                est_cam_ls.points = o3d.utility.Vector3dVector(est_cam_traj)
+                est_cam_ls.lines = o3d.utility.Vector2iVector(est_cam_lines)
+                est_cam_color = np.array([[1.0, 0.0, 1.0] for _ in est_cam_lines])  # 紫色
+                est_cam_ls.colors = o3d.utility.Vector3dVector(est_cam_color)
+                geometries.append(est_cam_ls)
+
+        # ===== 5) 关键帧坐标系 =====
         step = max(1, len(est_poses) // 72)
         for idx in range(0, len(est_poses), step):
-            # est 坐标系（绿色）
+            # est 物体坐标系（绿色）
             frame_est = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05)
             frame_est.paint_uniform_color([0.0, 0.8, 0.0])
             frame_est.transform(est_poses[idx])
             geometries.append(frame_est)
 
-            # mocap 坐标系（黄色）
+            # mocap 物体坐标系（黄色）
             frame_gt = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05)
             frame_gt.paint_uniform_color([1.0, 0.85, 0.0])
             frame_gt.transform(mocap_poses[idx])
             geometries.append(frame_gt)
+            
+            # GT 相机坐标系（青色，稍小）
+            if gt_cam_poses is not None and idx < len(gt_cam_poses):
+                frame_gt_cam = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.03)
+                frame_gt_cam.paint_uniform_color([0.0, 1.0, 1.0])
+                frame_gt_cam.transform(gt_cam_poses[idx])
+                geometries.append(frame_gt_cam)
+            
+            # Estimated 相机坐标系（紫色，稍小）
+            if est_cam_poses is not None and idx < len(est_cam_poses):
+                frame_est_cam = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.03)
+                frame_est_cam.paint_uniform_color([1.0, 0.0, 1.0])
+                frame_est_cam.transform(est_cam_poses[idx])
+                geometries.append(frame_est_cam)
 
-        # ===== 4) 显示 =====
+        # ===== 6) 显示 =====
         o3d.visualization.draw_geometries(
             geometries,
-            window_name="Estimated vs MoCap Trajectories",
+            window_name="Estimated vs MoCap Trajectories (Objects & Cameras)",
             width=960,
             height=720,
         )
@@ -905,6 +938,8 @@ class PoseEvaluator:
 
         est_poses = []
         mocap_poses = []
+        gt_cam_poses = []
+        est_cam_poses = []
         add_sum = 0
         
         for frame_idx in segment:        
@@ -939,6 +974,8 @@ class PoseEvaluator:
                 continue
             est_poses.append(est_pose)
             mocap_poses.append(gt_obj_pose)
+            gt_cam_poses.append(gt_cam_pose)
+            est_cam_poses.append(est_cam_pose)
 
             # est_pose = np.linalg.inv(est_cam_pose) @ est_pose
             # gt_obj_pose = np.linalg.inv(gt_cam_pose) @ gt_obj_pose
@@ -971,7 +1008,7 @@ class PoseEvaluator:
             results['add_mean'] = np.mean(results['add_values'])
             results['adds_mean'] = np.mean(results['adds_values'])
 
-        self.visualize_poses(est_poses, mocap_poses)
+        self.visualize_poses(est_poses, mocap_poses, gt_cam_poses, est_cam_poses)
         
         return results, add_sum
         
