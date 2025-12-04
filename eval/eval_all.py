@@ -141,6 +141,7 @@ class PoseEvaluator:
         self.detection_dir = os.path.join(self.dataset_dir, "detection_h")
         self.object_name = "apple"
         self.object_id = 2
+        self.obj_points = None
         self.mocap_robot_file = os.path.join("transform_matrix.txt")
         
         # ADD和ADD-S的阈值（单位：米）
@@ -190,8 +191,8 @@ class PoseEvaluator:
         self.o3d_geoms = {}  # hold geometries for world, gt_cam, gt_obj, est_obj
         self.o3d_last = {}   # last transforms for incremental update
 
-        # self.mocap_start_time_offset = self.find_mocap_start_time_offset()
-        self.mocap_start_time_offset = 0.13
+        self.mocap_start_time_offset = self.find_mocap_start_time_offset()
+        # self.mocap_start_time_offset = 0.13
     
     def _evaluate_offset(self, offset, segments_to_eval):
         """
@@ -450,7 +451,7 @@ class PoseEvaluator:
                     nearest_row_idx = i
             except (ValueError, TypeError):
                 continue
-        print(f"目标时间: {target_time:.6f}, 最近时间差: {min_diff:.6f} (行 {nearest_row_idx})")
+        # print(f"目标时间: {target_time:.6f}, 最近时间差: {min_diff:.6f} (行 {nearest_row_idx})")
                 
         if nearest_row_idx is None:
             return None, min_diff
@@ -645,6 +646,7 @@ class PoseEvaluator:
             points_hom = np.hstack([points, np.ones((points.shape[0], 1))])
             points_mocap = (gt_cam_pose @ points_hom.T).T
             points = points_mocap[:, :3]
+            # print(points)
 
                 
             return points
@@ -686,6 +688,9 @@ class PoseEvaluator:
         # self.camera_transformation = np.linalg.inv(self.mocap_robot @ mocap_head_pose) @ self.camera_poses[first_frame_idx]
         self.obj_transformation = np.linalg.inv(self.mocap_robot @ mocap_pose) @ T_ow
         self.camera_transformation = np.linalg.inv(self.mocap_robot @ mocap_head_pose) @ T_cw
+        self.obj_points = self.get_point_cloud(first_frame_idx, T_cw)
+        self.obj_points = self.transform_points(self.obj_points, np.linalg.inv(T_ow))
+        # print(self.obj_points)
         
         
         print(f"已计算转换矩阵:\n{self.obj_transformation, self.camera_transformation}")
@@ -925,7 +930,7 @@ class PoseEvaluator:
         nearest_idx = None
         if self.first_flag == False:
             self.compute_transformation_matrix(first_frame_idx)
-            self.first_flag = True
+            self.first_flag = False
             # 非实时模式：无需初始化持久化窗口
             
         results = {
@@ -977,12 +982,110 @@ class PoseEvaluator:
             gt_cam_poses.append(gt_cam_pose)
             est_cam_poses.append(est_cam_pose)
 
-            # est_pose = np.linalg.inv(est_cam_pose) @ est_pose
-            # gt_obj_pose = np.linalg.inv(gt_cam_pose) @ gt_obj_pose
+            est_pose = np.linalg.inv(est_cam_pose) @ est_pose
+            gt_obj_pose = np.linalg.inv(gt_cam_pose) @ gt_obj_pose
             
             # 将点云转换到两个姿态下
-            points_est = self.transform_points(point_cloud, est_pose @ np.linalg.inv(gt_cam_pose))
-            points_mocap = self.transform_points(point_cloud, gt_obj_pose @ np.linalg.inv(gt_cam_pose))
+            # points_est = self.transform_points(point_cloud, est_pose @ np.linalg.inv(gt_cam_pose))
+            # points_mocap = self.transform_points(point_cloud, gt_obj_pose @ np.linalg.inv(gt_cam_pose))
+            points_est = self.transform_points(self.obj_points, est_pose)
+            points_mocap = self.transform_points(self.obj_points, gt_obj_pose)
+            # print(points_est)
+            # print(points_mocap)
+            
+            # 计算ADD和ADD-S
+            add_value = self.calculate_add(points_est, points_mocap)
+            adds_value = self.calculate_adds(points_est, points_mocap)
+            
+            results['add_values'].append(add_value)
+            results['adds_values'].append(adds_value)
+            results['total_frames'] += 1
+            
+            if add_value < self.add_threshold:
+                results['add_correct'] += 1
+            if adds_value < self.adds_threshold:
+                results['adds_correct'] += 1
+            
+            print(f"帧 {frame_idx}: ADD={add_value:.4f}, ADD-S={adds_value:.4f}")
+            add_sum += add_value
+        # 计算成功率
+        if results['total_frames'] > 0:
+            results['add_success_rate'] = results['add_correct'] / results['total_frames']
+            results['adds_success_rate'] = results['adds_correct'] / results['total_frames']
+            results['add_mean'] = np.mean(results['add_values'])
+            results['adds_mean'] = np.mean(results['adds_values'])
+
+        self.visualize_poses(est_poses, mocap_poses, gt_cam_poses, est_cam_poses)
+        
+        return results, add_sum
+
+    def evaluate_segment_foudation_pose(self, segment):
+        """评估一个时间段内的姿态估计"""
+        # 使用第一帧计算坐标系转换矩阵
+        first_frame_idx = segment[0]
+        nearest_idx = None
+        if self.first_flag == False:
+            self.compute_transformation_matrix(first_frame_idx)
+            self.first_flag = False
+            # 非实时模式：无需初始化持久化窗口
+            
+        results = {
+            'add_values': [],
+            'adds_values': [],
+            'add_correct': 0,
+            'adds_correct': 0,
+            'total_frames': 0
+        }
+
+        est_poses = []
+        mocap_poses = []
+        gt_cam_poses = []
+        est_cam_poses = []
+        add_sum = 0
+        
+        for frame_idx in segment:        
+            # 获取估计姿态
+            est_pose = self.estimated_poses[frame_idx]['transform']
+            
+            # 获取对应的动捕真实姿态
+            nearest_idx, _ = self.find_nearest_mocap_idx(
+                self.estimated_poses[frame_idx]['timestamp'], nearest_idx
+            )
+            mocap_obj_pose, mocap_cam_pose = self.extract_mocap_pose(nearest_idx)
+                
+            # 将动捕姿态转换到估计坐标系
+            gt_obj_pose = self.mocap_robot @ mocap_obj_pose @ self.obj_transformation
+            gt_cam_pose = self.mocap_robot @ mocap_cam_pose @ self.camera_transformation
+            est_cam_pose = self.camera_poses[frame_idx]
+            # gt_obj_pose = self.mocap_robot @ mocap_obj_pose
+            # gt_cam_pose = self.mocap_robot @ mocap_cam_pose
+            # print(est_pose, "\n", self.mocap_robot @ mocap_obj_pose, "\n", gt_obj_pose)
+
+            # Open3D 逐帧可视化：每帧弹窗一次，关闭后继续
+            # try:
+            #     if frame_idx > -1: self.visualize_frame_open3d(np.eye(4), gt_cam_pose, self.camera_poses[frame_idx], gt_obj_pose, est_pose)
+            #     print(gt_obj_pose, "\n", est_pose)
+            # except Exception as e:
+            #     print(f"Open3D 可视化失败: {e}")
+
+            # 获取点云
+            point_cloud = self.get_point_cloud(frame_idx, gt_cam_pose)
+            if point_cloud is None or len(point_cloud) < 10:  # 至少需要10个点
+                print(f"跳过帧 {frame_idx}: 点云无效")
+                continue
+            est_poses.append(est_pose)
+            mocap_poses.append(gt_obj_pose)
+            gt_cam_poses.append(gt_cam_pose)
+            est_cam_poses.append(est_cam_pose)
+
+            est_pose = np.linalg.inv(est_cam_pose) @ est_pose
+            gt_obj_pose = np.linalg.inv(gt_cam_pose) @ gt_obj_pose
+            
+            # 将点云转换到两个姿态下
+            # points_est = self.transform_points(point_cloud, est_pose @ np.linalg.inv(gt_cam_pose))
+            # points_mocap = self.transform_points(point_cloud, gt_obj_pose @ np.linalg.inv(gt_cam_pose))
+            points_est = self.transform_points(self.obj_points, est_pose)
+            points_mocap = self.transform_points(self.obj_points, gt_obj_pose)
             # print(points_est)
             # print(points_mocap)
             
@@ -1018,7 +1121,7 @@ class PoseEvaluator:
         points_homogeneous = np.hstack((points, np.ones((len(points), 1))))
         
         # 应用变换
-        transformed_points = (np.linalg.inv(transform) @ points_homogeneous.T).T
+        transformed_points = (transform @ points_homogeneous.T).T
         
         # 返回3D坐标
         return transformed_points[:, :3]
