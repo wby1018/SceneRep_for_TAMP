@@ -131,7 +131,8 @@ class PoseEvaluator:
     def __init__(self, dataset_dir):
         # 设置所有路径和配置变量为实例变量
         self.dataset_dir = dataset_dir
-        self.eval_file = os.path.join(self.dataset_dir, "eval", "object_2.txt")
+        self.eval_file = None
+        self.foundation_file = None
         self.eval_cam_file = os.path.join(self.dataset_dir, "eval", "camera.txt")
         self.segment_file = os.path.join(self.dataset_dir, "eval", "segments.json")
         self.base_file = os.path.join(self.dataset_dir, "pose_txt", "base_pose.txt")
@@ -140,7 +141,7 @@ class PoseEvaluator:
         self.releases_file = "/media/wby/6d811df4-bde7-479b-ab4c-679222653ea0/takes/releases.txt"
         self.detection_dir = os.path.join(self.dataset_dir, "detection_h")
         self.object_name = "apple"
-        self.object_id = 2
+        self.object_id = None
         self.obj_points = None
         self.mocap_robot_file = os.path.join("transform_matrix.txt")
         
@@ -178,6 +179,8 @@ class PoseEvaluator:
         # 读取估计的姿态数据
         self.estimated_poses, self.evaluation_segments = self.read_estimated_poses()
         print(f"加载了 {len(self.estimated_poses)} 个估计姿态和 {len(self.evaluation_segments)} 个评估段")
+
+        self.foundation_poses = None
         
         # 坐标系转换矩阵（第一帧初始化）
         self.mocap_robot = np.loadtxt(self.mocap_robot_file)
@@ -191,8 +194,9 @@ class PoseEvaluator:
         self.o3d_geoms = {}  # hold geometries for world, gt_cam, gt_obj, est_obj
         self.o3d_last = {}   # last transforms for incremental update
 
-        self.mocap_start_time_offset = self.find_mocap_start_time_offset()
-        # self.mocap_start_time_offset = 0.13
+        # self.mocap_start_time_offset = self.find_mocap_start_time_offset()
+        self.mocap_start_time_offset = 0.13
+        self.has_offset = True
     
     def _evaluate_offset(self, offset, segments_to_eval):
         """
@@ -428,6 +432,70 @@ class PoseEvaluator:
                 filtered_segments.append(filtered_segment)
         
         return estimated_poses, filtered_segments
+
+    def read_foundation_poses(self):
+        """
+        1. 从 eval/segments.json 读取分段信息
+        2. 从 eval/object_X.txt 读取位姿数据
+        3. 从 pose_txt/timestamps.txt 读取时间戳
+        """
+        estimated_poses = {}        
+        # 读取时间戳
+        timestamps = {}
+        try:
+            with open(self.timestamp_file, 'r') as f:
+                for line in f:
+                    parts = line.strip().split()
+                    if len(parts) >= 3:  # 帧号 秒 纳秒
+                        frame_idx = int(parts[0])
+                        secs = int(parts[1])
+                        nsecs = int(parts[2])
+                        timestamps[frame_idx] = (secs, nsecs)
+            print(f"从 {self.timestamp_file} 读取到 {len(timestamps)} 个时间戳")
+        except Exception as e:
+            print(f"读取时间戳文件时出错: {e}")
+            return {}
+        
+        # 读取姿态数据
+        try:
+            with open(self.foundation_file, 'r') as f:
+                lines = f.readlines()
+                
+            for line in lines:
+                line = line.strip()
+                    
+                # 解析姿态数据: 帧号 x y z qx qy qz qw
+                parts = line.split()
+                if len(parts) < 8:
+                    print(f"警告: 行格式错误 '{line}'")
+                    continue
+                    
+                try:
+                    frame_idx = int(parts[0])
+                    position = np.array([float(parts[1]), float(parts[2]), float(parts[3])])
+                    quaternion = np.array([float(parts[4]), float(parts[5]), float(parts[6]), float(parts[7])])
+                    
+                    # 获取时间戳
+                    timestamp = timestamps.get(frame_idx)
+
+                    # 构建4x4变换矩阵
+                    transform = np.eye(4)
+                    transform[:3, :3] = Rotation.from_quat(quaternion).as_matrix()
+                    transform[:3, 3] = position
+                    
+                    estimated_poses[frame_idx] = {
+                        'timestamp': timestamp,
+                        'transform': transform
+                    }
+                except (ValueError, IndexError) as e:
+                    print(f"解析行 '{line}' 时出错: {e}")
+            
+            print(f"从 {self.foundation_file} 读取到 {len(estimated_poses)} 个姿态")
+        except Exception as e:
+            print(f"读取姿态文件时出错: {e}")
+        
+        return estimated_poses
+
 
         
     def find_nearest_mocap_idx(self, timestamp, last_nearest_idx=None):
@@ -674,6 +742,45 @@ class PoseEvaluator:
         # np.savetxt(T_HB_FILE, T_hb)
         # T_hb = np.loadtxt(T_HB_FILE)
         T_oc = np.linalg.inv(self.camera_poses[first_frame_idx]) @ self.estimated_poses[first_frame_idx]['transform']
+        T_cw = (self.mocap_robot @ mocap_head_pose @ np.linalg.inv(T_hb)) @ np.linalg.inv(self.base_poses[first_frame_idx]) @ self.camera_poses[first_frame_idx]
+        T_ow = T_cw @ T_oc
+
+        # print(f"estimated pose:\n{self.estimated_poses[first_frame_idx]['transform']}")
+        # print(f"camera pose:\n{self.camera_poses[first_frame_idx]}")
+        # print(f"T_cw:\n{T_cw}")
+        # print(f"T_ow:\n{T_ow}")
+
+
+        # 计算从动捕坐标系到估计坐标系的变换矩阵
+        # self.obj_transformation = np.linalg.inv(self.mocap_robot @ mocap_pose) @ self.estimated_poses[first_frame_idx]['transform']
+        # self.camera_transformation = np.linalg.inv(self.mocap_robot @ mocap_head_pose) @ self.camera_poses[first_frame_idx]
+        self.obj_transformation = np.linalg.inv(self.mocap_robot @ mocap_pose) @ T_ow
+        self.camera_transformation = np.linalg.inv(self.mocap_robot @ mocap_head_pose) @ T_cw
+        self.obj_points = self.get_point_cloud(first_frame_idx, T_cw)
+        self.obj_points = self.transform_points(self.obj_points, np.linalg.inv(T_ow))
+        # print(self.obj_points)
+        
+        
+        print(f"已计算转换矩阵:\n{self.obj_transformation, self.camera_transformation}")
+        return True
+
+    def compute_transformation_matrix_foundation_pose(self, first_frame_idx):
+        """计算动捕坐标系到估计坐标系的转换矩阵（使用第一帧）"""
+        # 获取第一帧的估计姿态
+        if first_frame_idx not in self.foundation_poses:
+            print(f"错误: 找不到帧 {first_frame_idx} 的估计姿态")
+            return False
+        
+        # 获取对应的动捕真实姿态
+        nearest_idx, _ = self.find_nearest_mocap_idx(
+            self.foundation_poses[first_frame_idx]['timestamp']
+        )
+        mocap_pose, mocap_head_pose = self.extract_mocap_pose(nearest_idx)
+
+        T_hb = np.linalg.inv(self.base_poses[first_frame_idx]) @ self.mocap_robot @ mocap_head_pose
+        # np.savetxt(T_HB_FILE, T_hb)
+        # T_hb = np.loadtxt(T_HB_FILE)
+        T_oc = self.foundation_poses[first_frame_idx]['transform']
         T_cw = (self.mocap_robot @ mocap_head_pose @ np.linalg.inv(T_hb)) @ np.linalg.inv(self.base_poses[first_frame_idx]) @ self.camera_poses[first_frame_idx]
         T_ow = T_cw @ T_oc
 
@@ -950,6 +1057,7 @@ class PoseEvaluator:
         for frame_idx in segment:        
             # 获取估计姿态
             est_pose = self.estimated_poses[frame_idx]['transform']
+            foundation_pose = self.foundation_poses[frame_idx]['transform']
             
             # 获取对应的动捕真实姿态
             nearest_idx, _ = self.find_nearest_mocap_idx(
@@ -984,6 +1092,9 @@ class PoseEvaluator:
 
             est_pose = np.linalg.inv(est_cam_pose) @ est_pose
             gt_obj_pose = np.linalg.inv(gt_cam_pose) @ gt_obj_pose
+
+            # est_pose = foundation_pose
+            # gt_obj_pose = np.linalg.inv(gt_cam_pose) @ gt_obj_pose
             
             # 将点云转换到两个姿态下
             # points_est = self.transform_points(point_cloud, est_pose @ np.linalg.inv(gt_cam_pose))
@@ -1019,14 +1130,14 @@ class PoseEvaluator:
         
         return results, add_sum
 
-    def evaluate_segment_foudation_pose(self, segment):
+    def evaluate_segment_foundation_pose(self, segment):
         """评估一个时间段内的姿态估计"""
         # 使用第一帧计算坐标系转换矩阵
         first_frame_idx = segment[0]
         nearest_idx = None
         if self.first_flag == False:
-            self.compute_transformation_matrix(first_frame_idx)
-            self.first_flag = False
+            self.compute_transformation_matrix_foundation_pose(first_frame_idx)
+            self.first_flag = True
             # 非实时模式：无需初始化持久化窗口
             
         results = {
@@ -1045,7 +1156,7 @@ class PoseEvaluator:
         
         for frame_idx in segment:        
             # 获取估计姿态
-            est_pose = self.estimated_poses[frame_idx]['transform']
+            # est_pose = self.foundation_poses[frame_idx]['transform']
             
             # 获取对应的动捕真实姿态
             nearest_idx, _ = self.find_nearest_mocap_idx(
@@ -1057,6 +1168,7 @@ class PoseEvaluator:
             gt_obj_pose = self.mocap_robot @ mocap_obj_pose @ self.obj_transformation
             gt_cam_pose = self.mocap_robot @ mocap_cam_pose @ self.camera_transformation
             est_cam_pose = self.camera_poses[frame_idx]
+            est_pose = est_cam_pose @ self.foundation_poses[frame_idx]['transform']
             # gt_obj_pose = self.mocap_robot @ mocap_obj_pose
             # gt_cam_pose = self.mocap_robot @ mocap_cam_pose
             # print(est_pose, "\n", self.mocap_robot @ mocap_obj_pose, "\n", gt_obj_pose)
@@ -1080,6 +1192,9 @@ class PoseEvaluator:
 
             est_pose = np.linalg.inv(est_cam_pose) @ est_pose
             gt_obj_pose = np.linalg.inv(gt_cam_pose) @ gt_obj_pose
+
+            # est_pose = foundation_pose
+            # gt_obj_pose = np.linalg.inv(gt_cam_pose) @ gt_obj_pose
             
             # 将点云转换到两个姿态下
             # points_est = self.transform_points(point_cloud, est_pose @ np.linalg.inv(gt_cam_pose))
@@ -1114,6 +1229,7 @@ class PoseEvaluator:
         self.visualize_poses(est_poses, mocap_poses, gt_cam_poses, est_cam_poses)
         
         return results, add_sum
+
         
     def transform_points(self, points, transform):
         """将点云应用变换矩阵"""
@@ -1135,6 +1251,7 @@ class PoseEvaluator:
         
         # 更新评估文件路径以匹配新的对象ID
         self.eval_file = os.path.join(self.dataset_dir, "eval", f"object_{object_id}.txt")
+        self.foundation_file = os.path.join(self.dataset_dir, "eval_foundationpose", f"object_{object_id}.txt")
         
         # 清除对象位姿列的缓存，因为对象名称可能已改变
         if hasattr(self, 'obj_cols'):
@@ -1147,13 +1264,19 @@ class PoseEvaluator:
         
         # 重新读取估计的姿态数据，因为eval_file可能已改变
         self.estimated_poses, self.evaluation_segments = self.read_estimated_poses()
+        self.foundation_poses = self.read_foundation_poses()
         print(f"评估对象: {object_name} (ID: {object_id})")
         print(f"使用评估文件: {self.eval_file}")
-        
+
+        if self.has_offset == False:
+            self.mocap_start_time_offset = self.find_mocap_start_time_offset()
+            self.has_offset = True
+
         all_results = []
         
         for i, segment in enumerate(self.evaluation_segments):
             print(f"\n评估段 {i+1}/{len(self.evaluation_segments)}")
+            # results, _ = self.evaluate_segment_foundation_pose(segment)
             results, _ = self.evaluate_segment(segment)
             if results:
                 all_results.append(results)
