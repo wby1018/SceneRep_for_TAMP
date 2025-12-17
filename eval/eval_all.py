@@ -21,11 +21,14 @@ from scipy.spatial import cKDTree
 import re
 import glob
 
+import csv
+
+
 def auto_find_take_csv(takes_dir, timestamps_file):
     """
-    自动匹配 takes 文件夹中与 timestamps.txt 的 ros 时间最接近的 CSV 文件
+    自动匹配 takes 文件夹中：时间 <= timestamps.txt 第一帧 ros_time，且最接近 ros_time 的 CSV
     """
-    # 1. 读取 ROS 第一帧时间
+    # 1) 读取 ROS 第一帧时间
     with open(timestamps_file, "r") as f:
         line = f.readline().strip()
     parts = line.split()
@@ -37,49 +40,54 @@ def auto_find_take_csv(takes_dir, timestamps_file):
     print(f"[auto_find_take_csv] 第一帧 ROS 时间: {ros_time} (Unix seconds)")
     print(f"[auto_find_take_csv] 第一帧 ROS 日期时间: {ros_datetime}")
 
-    # 2. 遍历 takes/ 下的所有 CSV
+    # 2) 遍历 takes/ 下的所有 CSV
     csv_files = glob.glob(os.path.join(takes_dir, "*.csv"))
     if not csv_files:
         raise FileNotFoundError(f"未找到 takes 下的 CSV 文件：{takes_dir}")
 
     best_csv = None
-    best_time_diff = float("inf")
+    best_time_diff = float("inf")  # ros_time - dt_unix（越小越好）
+    best_dt_unix = None
 
-    # 3. 解析每个 CSV 文件名的时间
+    # 3) 解析每个 CSV 文件名的时间
     for csv_path in csv_files:
         name = os.path.basename(csv_path)
 
-        # 匹配: Take 2025-09-25 04.43.51 PM.csv
-        m = re.match(r"Take (\d{4}-\d{2}-\d{2}) (\d{2}\.\d{2}\.\d{2}) (AM|PM)\.csv", name)
+        # 兼容多个空格：Take 2025-09-25 04.43.51 PM.csv
+        m = re.match(r"^Take\s+(\d{4}-\d{2}-\d{2})\s+(\d{2}\.\d{2}\.\d{2})\s+(AM|PM)\.csv$", name)
         if not m:
             print(f"[auto_find_take_csv] 跳过无法解析的文件名: {name}")
             continue
 
-        date_str = m.group(1)                # 2025-09-25
-        time_str = m.group(2)                # 04.43.51
-        ampm = m.group(3)                    # PM
+        date_str = m.group(1)
+        time_str = m.group(2)
+        ampm = m.group(3)
 
-        # 转成标准时间
-        time_str2 = time_str.replace(".", ":")  # "04:43:51"
+        time_str2 = time_str.replace(".", ":")
         datetime_str = f"{date_str} {time_str2} {ampm}"
 
-        # 注意这里用 %I（12 小时制）+ %p
         dt = datetime.datetime.strptime(datetime_str, "%Y-%m-%d %I:%M:%S %p")
         dt_unix = dt.timestamp()
 
-        diff = abs(dt_unix - ros_time)
-        # print(f"[auto_find_take_csv] 检查 {name}: {dt} diff={diff}")
+        # ✅ 只接受“早于或等于 ros_time”的 take
+        if dt_unix > ros_time:
+            continue
 
-        # 找到最接近的
+        diff = ros_time - dt_unix  # 越小越接近（但不超过）
         if diff < best_time_diff:
             best_time_diff = diff
             best_csv = csv_path
+            best_dt_unix = dt_unix
 
     if best_csv is None:
-        raise RuntimeError("未找到匹配的 Take CSV 文件！")
+        raise RuntimeError(
+            "未找到满足 dt_unix <= ros_time 的 Take CSV 文件！"
+            "（可能是 takes 里最早的 take 也晚于 ros_time，或文件名格式不匹配）"
+        )
 
-    print(f"[auto_find_take_csv] 选中了: {best_csv}")
-    return best_csv
+    print(f"[auto_find_take_csv] 选中了: {best_csv} (diff={best_time_diff:.3f}s)")
+    return best_csv, best_dt_unix
+
 
 
 def compute_mocap_start_time_from_releases(releases_path, ros_first_timestamp):
@@ -90,8 +98,8 @@ def compute_mocap_start_time_from_releases(releases_path, ros_first_timestamp):
     if not os.path.exists(releases_path):
         raise FileNotFoundError(f"releases.txt 未找到: {releases_path}")
 
-    ros_secs, ros_nsecs = ros_first_timestamp
-    ros_time = ros_secs + ros_nsecs * 1e-9  # float unix seconds
+    # ros_secs, ros_nsecs = ros_first_timestamp
+    ros_time = ros_first_timestamp
 
     best_time = None
     best_diff = float("inf")
@@ -131,8 +139,10 @@ class PoseEvaluator:
     def __init__(self, dataset_dir):
         # 设置所有路径和配置变量为实例变量
         self.dataset_dir = dataset_dir
+        self.global_csv_path = "/home/wby/baselines/SR_TAMP/eval/global_results.csv"
         self.eval_file = None
         self.foundation_file = None
+        self.bundle_sdf_file = None
         self.eval_cam_file = os.path.join(self.dataset_dir, "eval", "camera.txt")
         self.segment_file = os.path.join(self.dataset_dir, "eval", "segments.json")
         self.base_file = os.path.join(self.dataset_dir, "pose_txt", "base_pose.txt")
@@ -144,10 +154,12 @@ class PoseEvaluator:
         self.object_id = None
         self.obj_points = None
         self.mocap_robot_file = os.path.join("transform_matrix.txt")
+        self.drop_frame_threshold = 0.05   # 如果三种方法ADD都超过该阈值，丢弃该帧（认为GT漂）
+
         
         # ADD和ADD-S的阈值（单位：米）
-        self.add_threshold = 0.05
-        self.adds_threshold = 0.05
+        self.add_threshold = 0.02
+        self.adds_threshold = 0.02
         
         # 读取 timestamps.txt 第一行
         with open(self.timestamp_file, "r") as f:
@@ -155,11 +167,11 @@ class PoseEvaluator:
         ros_first_timestamp = (int(line[1]), int(line[2]))
         
         # 自动查找匹配的CSV文件
-        self.csv_file = auto_find_take_csv(self.takes_dir, self.timestamp_file)
+        self.csv_file, best_dt_unix = auto_find_take_csv(self.takes_dir, self.timestamp_file)
 
         self.mocap_start_time = compute_mocap_start_time_from_releases(
             self.releases_file,
-            ros_first_timestamp
+            best_dt_unix
         )
 
         print(f"动捕开始时间: {self.mocap_start_time}")
@@ -177,10 +189,11 @@ class PoseEvaluator:
         print(f"加载了 {len(self.base_poses)} 个base位姿")
         
         # 读取估计的姿态数据
-        self.estimated_poses, self.evaluation_segments = self.read_estimated_poses()
-        print(f"加载了 {len(self.estimated_poses)} 个估计姿态和 {len(self.evaluation_segments)} 个评估段")
+        # self.estimated_poses, self.evaluation_segments = self.read_estimated_poses()
+        # print(f"加载了 {len(self.estimated_poses)} 个估计姿态和 {len(self.evaluation_segments)} 个评估段")
 
         self.foundation_poses = None
+        self.bundle_sdf_poses = None
         
         # 坐标系转换矩阵（第一帧初始化）
         self.mocap_robot = np.loadtxt(self.mocap_robot_file)
@@ -346,10 +359,11 @@ class PoseEvaluator:
         2. 从 eval/object_X.txt 读取位姿数据
         3. 从 pose_txt/timestamps.txt 读取时间戳
         """
+        # print("222222222222222222222222222222222222222222222222222222222222222222222222222222222222222")
         estimated_poses = {}
         segments = []
-        segment = list(range(0, 5000))
-        segments.append(segment)
+        # segment = list(range(0, 5000))
+        # segments.append(segment)
         
         # 读取分段信息
         if os.path.exists(self.segment_file):
@@ -387,6 +401,10 @@ class PoseEvaluator:
             return {}, segments
         
         # 读取姿态数据
+        if self.eval_file is None:
+            print("警告: eval_file 未设置，跳过读取姿态数据")
+            return {}, segments
+        
         try:
             with open(self.eval_file, 'r') as f:
                 lines = f.readlines()
@@ -431,6 +449,9 @@ class PoseEvaluator:
             if filtered_segment:
                 filtered_segments.append(filtered_segment)
         
+        # print("333333333333333333333333333333333333333333333333333333333333333333333333333333333333333")
+        # print(len(estimated_poses))
+        # print(len(filtered_segments))
         return estimated_poses, filtered_segments
 
     def read_foundation_poses(self):
@@ -457,6 +478,10 @@ class PoseEvaluator:
             return {}
         
         # 读取姿态数据
+        if self.foundation_file is None:
+            print("警告: foundation_file 未设置，跳过读取姿态数据")
+            return {}
+        
         try:
             with open(self.foundation_file, 'r') as f:
                 lines = f.readlines()
@@ -491,6 +516,73 @@ class PoseEvaluator:
                     print(f"解析行 '{line}' 时出错: {e}")
             
             print(f"从 {self.foundation_file} 读取到 {len(estimated_poses)} 个姿态")
+        except Exception as e:
+            print(f"读取姿态文件时出错: {e}")
+        
+        return estimated_poses
+
+    def read_bundle_sdf_poses(self):
+        """
+        1. 从 eval/segments.json 读取分段信息
+        2. 从 eval/object_X.txt 读取位姿数据
+        3. 从 pose_txt/timestamps.txt 读取时间戳
+        """
+        estimated_poses = {}        
+        # 读取时间戳
+        timestamps = {}
+        try:
+            with open(self.timestamp_file, 'r') as f:
+                for line in f:
+                    parts = line.strip().split()
+                    if len(parts) >= 3:  # 帧号 秒 纳秒
+                        frame_idx = int(parts[0])
+                        secs = int(parts[1])
+                        nsecs = int(parts[2])
+                        timestamps[frame_idx] = (secs, nsecs)
+            print(f"从 {self.timestamp_file} 读取到 {len(timestamps)} 个时间戳")
+        except Exception as e:
+            print(f"读取时间戳文件时出错: {e}")
+            return {}
+        
+        # 读取姿态数据
+        if self.bundle_sdf_file is None:
+            print("警告: bundle_sdf_file 未设置，跳过读取姿态数据")
+            return {}
+        
+        try:
+            with open(self.bundle_sdf_file, 'r') as f:
+                lines = f.readlines()
+                
+            for line in lines:
+                line = line.strip()
+                    
+                # 解析姿态数据: 帧号 x y z qx qy qz qw
+                parts = line.split()
+                if len(parts) < 8:
+                    print(f"警告: 行格式错误 '{line}'")
+                    continue
+                    
+                try:
+                    frame_idx = int(parts[0])
+                    position = np.array([float(parts[1]), float(parts[2]), float(parts[3])])
+                    quaternion = np.array([float(parts[4]), float(parts[5]), float(parts[6]), float(parts[7])])
+                    
+                    # 获取时间戳
+                    timestamp = timestamps.get(frame_idx)
+
+                    # 构建4x4变换矩阵
+                    transform = np.eye(4)
+                    transform[:3, :3] = Rotation.from_quat(quaternion).as_matrix()
+                    transform[:3, 3] = position
+                    
+                    estimated_poses[frame_idx] = {
+                        'timestamp': timestamp,
+                        'transform': transform
+                    }
+                except (ValueError, IndexError) as e:
+                    print(f"解析行 '{line}' 时出错: {e}")
+            
+            print(f"从 {self.bundle_sdf_file} 读取到 {len(estimated_poses)} 个姿态")
         except Exception as e:
             print(f"读取姿态文件时出错: {e}")
         
@@ -600,25 +692,59 @@ class PoseEvaluator:
         """找到CSV文件中苹果位姿的列索引"""
         if hasattr(self, 'obj_cols'):
             return self.obj_cols
+        
+        # 检查必要的属性是否已初始化
+        if self.csv_data is None:
+            raise ValueError("csv_data 未初始化，无法查找列索引")
+        if self.object_name is None:
+            raise ValueError("object_name 未设置，无法查找列索引")
             
         self.obj_cols = {}
+
+        # print("444444444444444444444444444444444444444444444444444444444444444444444444444444444444444")
+        # print(self.csv_data.columns)
+        # print(self.object_name)
         
         for col in self.csv_data.columns:
             col_data = self.csv_data[col]
-            if (col_data == self.object_name).any() and (col_data == "Position").any() and (col_data == "X").any():
+            print(f"检查列 {col}: {col_data.unique()[:5]}")  # 打印前5个唯一值用于调试
+            
+            # 检查是否包含对象名称
+            has_object_name = (col_data == self.object_name).any()
+            has_position = (col_data == "Position").any()
+            has_rotation = (col_data == "Rotation").any()
+            has_x = (col_data == "X").any()
+            has_y = (col_data == "Y").any()
+            has_z = (col_data == "Z").any()
+            has_w = (col_data == "W").any()
+            
+            # 使用独立的 if 语句而不是 elif，避免逻辑错误
+            if has_object_name and has_position and has_x:
                 self.obj_cols['x'] = col
-            elif (col_data == self.object_name).any() and (col_data == "Position").any() and (col_data == "Y").any():
+            if has_object_name and has_position and has_y:
                 self.obj_cols['y'] = col
-            elif (col_data == self.object_name).any() and (col_data == "Position").any() and (col_data == "Z").any():
+            if has_object_name and has_position and has_z:
                 self.obj_cols['z'] = col
-            elif (col_data == self.object_name).any() and (col_data == "Rotation").any() and (col_data == "X").any():
+            if has_object_name and has_rotation and has_x:
                 self.obj_cols['qx'] = col
-            elif (col_data == self.object_name).any() and (col_data == "Rotation").any() and (col_data == "Y").any():
+            if has_object_name and has_rotation and has_y:
                 self.obj_cols['qy'] = col
-            elif (col_data == self.object_name).any() and (col_data == "Rotation").any() and (col_data == "Z").any():
+            if has_object_name and has_rotation and has_z:
                 self.obj_cols['qz'] = col
-            elif (col_data == self.object_name).any() and (col_data == "Rotation").any() and (col_data == "W").any():
+            if has_object_name and has_rotation and has_w:
                 self.obj_cols['qw'] = col
+        
+        # 检查是否找到了所有必需的列
+        required_cols = ['x', 'y', 'z', 'qx', 'qy', 'qz', 'qw']
+        missing_cols = [col for col in required_cols if col not in self.obj_cols]
+        
+        if missing_cols:
+            raise ValueError(
+                f"未找到以下必需的列: {missing_cols}\n"
+                f"找到的列: {self.obj_cols}\n"
+                f"对象名称: {self.object_name}\n"
+                f"CSV列: {list(self.csv_data.columns)}"
+            )
         
         print(f"找到的苹果位姿列: {self.obj_cols}")
         
@@ -764,6 +890,7 @@ class PoseEvaluator:
         print(f"已计算转换矩阵:\n{self.obj_transformation, self.camera_transformation}")
         return True
 
+
     def compute_transformation_matrix_foundation_pose(self, first_frame_idx):
         """计算动捕坐标系到估计坐标系的转换矩阵（使用第一帧）"""
         # 获取第一帧的估计姿态
@@ -781,6 +908,45 @@ class PoseEvaluator:
         # np.savetxt(T_HB_FILE, T_hb)
         # T_hb = np.loadtxt(T_HB_FILE)
         T_oc = self.foundation_poses[first_frame_idx]['transform']
+        T_cw = (self.mocap_robot @ mocap_head_pose @ np.linalg.inv(T_hb)) @ np.linalg.inv(self.base_poses[first_frame_idx]) @ self.camera_poses[first_frame_idx]
+        T_ow = T_cw @ T_oc
+
+        # print(f"estimated pose:\n{self.estimated_poses[first_frame_idx]['transform']}")
+        # print(f"camera pose:\n{self.camera_poses[first_frame_idx]}")
+        # print(f"T_cw:\n{T_cw}")
+        # print(f"T_ow:\n{T_ow}")
+
+
+        # 计算从动捕坐标系到估计坐标系的变换矩阵
+        # self.obj_transformation = np.linalg.inv(self.mocap_robot @ mocap_pose) @ self.estimated_poses[first_frame_idx]['transform']
+        # self.camera_transformation = np.linalg.inv(self.mocap_robot @ mocap_head_pose) @ self.camera_poses[first_frame_idx]
+        self.obj_transformation = np.linalg.inv(self.mocap_robot @ mocap_pose) @ T_ow
+        self.camera_transformation = np.linalg.inv(self.mocap_robot @ mocap_head_pose) @ T_cw
+        self.obj_points = self.get_point_cloud(first_frame_idx, T_cw)
+        self.obj_points = self.transform_points(self.obj_points, np.linalg.inv(T_ow))
+        # print(self.obj_points)
+        
+        
+        print(f"已计算转换矩阵:\n{self.obj_transformation, self.camera_transformation}")
+        return True
+
+    def compute_transformation_matrix_bundle_sdf(self, first_frame_idx):
+        """计算动捕坐标系到估计坐标系的转换矩阵（使用第一帧）"""
+        # 获取第一帧的估计姿态
+        if first_frame_idx not in self.bundle_sdf_poses:
+            print(f"错误: 找不到帧 {first_frame_idx} 的估计姿态")
+            return False
+        
+        # 获取对应的动捕真实姿态
+        nearest_idx, _ = self.find_nearest_mocap_idx(
+            self.bundle_sdf_poses[first_frame_idx]['timestamp']
+        )
+        mocap_pose, mocap_head_pose = self.extract_mocap_pose(nearest_idx)
+
+        T_hb = np.linalg.inv(self.base_poses[first_frame_idx]) @ self.mocap_robot @ mocap_head_pose
+        # np.savetxt(T_HB_FILE, T_hb)
+        # T_hb = np.loadtxt(T_HB_FILE)
+        T_oc = self.bundle_sdf_poses[first_frame_idx]['transform']
         T_cw = (self.mocap_robot @ mocap_head_pose @ np.linalg.inv(T_hb)) @ np.linalg.inv(self.base_poses[first_frame_idx]) @ self.camera_poses[first_frame_idx]
         T_ow = T_cw @ T_oc
 
@@ -1037,10 +1203,12 @@ class PoseEvaluator:
         nearest_idx = None
         if self.first_flag == False:
             self.compute_transformation_matrix(first_frame_idx)
-            self.first_flag = False
+            # self.compute_transformation_matrix()
+            # self.first_flag = True
             # 非实时模式：无需初始化持久化窗口
             
         results = {
+            'frame_ids': [],
             'add_values': [],
             'adds_values': [],
             'add_correct': 0,
@@ -1111,6 +1279,7 @@ class PoseEvaluator:
             results['add_values'].append(add_value)
             results['adds_values'].append(adds_value)
             results['total_frames'] += 1
+            results['frame_ids'].append(frame_idx)
             
             if add_value < self.add_threshold:
                 results['add_correct'] += 1
@@ -1126,7 +1295,7 @@ class PoseEvaluator:
             results['add_mean'] = np.mean(results['add_values'])
             results['adds_mean'] = np.mean(results['adds_values'])
 
-        self.visualize_poses(est_poses, mocap_poses, gt_cam_poses, est_cam_poses)
+        # self.visualize_poses(est_poses, mocap_poses, gt_cam_poses, est_cam_poses)
         
         return results, add_sum
 
@@ -1137,10 +1306,11 @@ class PoseEvaluator:
         nearest_idx = None
         if self.first_flag == False:
             self.compute_transformation_matrix_foundation_pose(first_frame_idx)
-            self.first_flag = True
+            # self.first_flag = True
             # 非实时模式：无需初始化持久化窗口
             
         results = {
+            'frame_ids': [],
             'add_values': [],
             'adds_values': [],
             'add_correct': 0,
@@ -1211,6 +1381,7 @@ class PoseEvaluator:
             results['add_values'].append(add_value)
             results['adds_values'].append(adds_value)
             results['total_frames'] += 1
+            results['frame_ids'].append(frame_idx)
             
             if add_value < self.add_threshold:
                 results['add_correct'] += 1
@@ -1226,7 +1397,109 @@ class PoseEvaluator:
             results['add_mean'] = np.mean(results['add_values'])
             results['adds_mean'] = np.mean(results['adds_values'])
 
-        self.visualize_poses(est_poses, mocap_poses, gt_cam_poses, est_cam_poses)
+        # self.visualize_poses(est_poses, mocap_poses, gt_cam_poses, est_cam_poses)
+        
+        return results, add_sum
+
+    def evaluate_segment_bundle_sdf(self, segment):
+        """评估一个时间段内的姿态估计"""
+        # 使用第一帧计算坐标系转换矩阵
+        first_frame_idx = segment[0]
+        nearest_idx = None
+        if self.first_flag == False:
+            self.compute_transformation_matrix_bundle_sdf(first_frame_idx)
+            # self.first_flag = True
+            # 非实时模式：无需初始化持久化窗口
+            
+        results = {
+            'frame_ids': [],
+            'add_values': [],
+            'adds_values': [],
+            'add_correct': 0,
+            'adds_correct': 0,
+            'total_frames': 0
+        }
+
+        est_poses = []
+        mocap_poses = []
+        gt_cam_poses = []
+        est_cam_poses = []
+        add_sum = 0
+        
+        for frame_idx in segment:        
+            # 获取估计姿态
+            # est_pose = self.foundation_poses[frame_idx]['transform']
+            
+            # 获取对应的动捕真实姿态
+            nearest_idx, _ = self.find_nearest_mocap_idx(
+                self.estimated_poses[frame_idx]['timestamp'], nearest_idx
+            )
+            mocap_obj_pose, mocap_cam_pose = self.extract_mocap_pose(nearest_idx)
+                
+            # 将动捕姿态转换到估计坐标系
+            gt_obj_pose = self.mocap_robot @ mocap_obj_pose @ self.obj_transformation
+            gt_cam_pose = self.mocap_robot @ mocap_cam_pose @ self.camera_transformation
+            est_cam_pose = self.camera_poses[frame_idx]
+            est_pose = est_cam_pose @ self.bundle_sdf_poses[frame_idx]['transform']
+            # gt_obj_pose = self.mocap_robot @ mocap_obj_pose
+            # gt_cam_pose = self.mocap_robot @ mocap_cam_pose
+            # print(est_pose, "\n", self.mocap_robot @ mocap_obj_pose, "\n", gt_obj_pose)
+
+            # Open3D 逐帧可视化：每帧弹窗一次，关闭后继续
+            # try:
+            #     if frame_idx > -1: self.visualize_frame_open3d(np.eye(4), gt_cam_pose, self.camera_poses[frame_idx], gt_obj_pose, est_pose)
+            #     print(gt_obj_pose, "\n", est_pose)
+            # except Exception as e:
+            #     print(f"Open3D 可视化失败: {e}")
+
+            # 获取点云
+            point_cloud = self.get_point_cloud(frame_idx, gt_cam_pose)
+            if point_cloud is None or len(point_cloud) < 10:  # 至少需要10个点
+                print(f"跳过帧 {frame_idx}: 点云无效")
+                continue
+            est_poses.append(est_pose)
+            mocap_poses.append(gt_obj_pose)
+            gt_cam_poses.append(gt_cam_pose)
+            est_cam_poses.append(est_cam_pose)
+
+            est_pose = np.linalg.inv(est_cam_pose) @ est_pose
+            gt_obj_pose = np.linalg.inv(gt_cam_pose) @ gt_obj_pose
+
+            # est_pose = foundation_pose
+            # gt_obj_pose = np.linalg.inv(gt_cam_pose) @ gt_obj_pose
+            
+            # 将点云转换到两个姿态下
+            # points_est = self.transform_points(point_cloud, est_pose @ np.linalg.inv(gt_cam_pose))
+            # points_mocap = self.transform_points(point_cloud, gt_obj_pose @ np.linalg.inv(gt_cam_pose))
+            points_est = self.transform_points(self.obj_points, est_pose)
+            points_mocap = self.transform_points(self.obj_points, gt_obj_pose)
+            # print(points_est)
+            # print(points_mocap)
+            
+            # 计算ADD和ADD-S
+            add_value = self.calculate_add(points_est, points_mocap)
+            adds_value = self.calculate_adds(points_est, points_mocap)
+            
+            results['add_values'].append(add_value)
+            results['adds_values'].append(adds_value)
+            results['total_frames'] += 1
+            results['frame_ids'].append(frame_idx)
+            
+            if add_value < self.add_threshold:
+                results['add_correct'] += 1
+            if adds_value < self.adds_threshold:
+                results['adds_correct'] += 1
+            
+            print(f"帧 {frame_idx}: ADD={add_value:.4f}, ADD-S={adds_value:.4f}")
+            add_sum += add_value
+        # 计算成功率
+        if results['total_frames'] > 0:
+            results['add_success_rate'] = results['add_correct'] / results['total_frames']
+            results['adds_success_rate'] = results['adds_correct'] / results['total_frames']
+            results['add_mean'] = np.mean(results['add_values'])
+            results['adds_mean'] = np.mean(results['adds_values'])
+
+        # self.visualize_poses(est_poses, mocap_poses, gt_cam_poses, est_cam_poses)
         
         return results, add_sum
 
@@ -1241,88 +1514,419 @@ class PoseEvaluator:
         
         # 返回3D坐标
         return transformed_points[:, :3]
+
+    def _find_bad_frames_all_methods(self, res_ours, res_fp, res_bs, thr):
+        """
+        返回需要丢弃的 frame set：三种方法在同一帧的 ADD 都 > thr
+        只在三者都对该帧有记录时才判断（取交集）。
+        """
+        ours_map = dict(zip(res_ours.get("frame_ids", []), res_ours.get("add_values", [])))
+        fp_map   = dict(zip(res_fp.get("frame_ids", []),   res_fp.get("add_values", [])))
+        bs_map   = dict(zip(res_bs.get("frame_ids", []),   res_bs.get("add_values", [])))
+
+        common = set(ours_map.keys()) & set(fp_map.keys()) & set(bs_map.keys())
+        bad = {f for f in common if (ours_map[f] > thr and fp_map[f] > thr and bs_map[f] > thr)}
+        return bad
+
+    def _filter_results_by_bad_frames(self, res, bad_frames):
+        """
+        从单个方法的 results 中剔除 bad_frames，并重算统计量。
+        """
+        if not res or not bad_frames or "frame_ids" not in res:
+            return res
+
+        new_frame_ids, new_adds, new_adds_s = [], [], []
+        for f, a, s in zip(res["frame_ids"], res["add_values"], res["adds_values"]):
+            if f in bad_frames:
+                continue
+            new_frame_ids.append(f)
+            new_adds.append(a)
+            new_adds_s.append(s)
+
+        res["frame_ids"] = new_frame_ids
+        res["add_values"] = new_adds
+        res["adds_values"] = new_adds_s
+
+        res["total_frames"] = len(new_frame_ids)
+        res["add_correct"] = sum(1 for a in new_adds if a < self.add_threshold)
+        res["adds_correct"] = sum(1 for s in new_adds_s if s < self.adds_threshold)
+
+        if res["total_frames"] > 0:
+            res["add_success_rate"] = res["add_correct"] / res["total_frames"]
+            res["adds_success_rate"] = res["adds_correct"] / res["total_frames"]
+            res["add_mean"] = float(np.mean(new_adds))
+            res["adds_mean"] = float(np.mean(new_adds_s))
+        else:
+            # 过滤后可能变空
+            res["add_success_rate"] = ""
+            res["adds_success_rate"] = ""
+            res["add_mean"] = ""
+            res["adds_mean"] = ""
+        return res
+
     
-        
+
     def evaluate(self, object_id, object_name):
-        """评估所有时间段"""
+        """评估所有时间段，并将三种方法结果写入同一个 CSV"""
         # 更新对象ID和名称
         self.object_id = object_id
         self.object_name = object_name
-        
-        # 更新评估文件路径以匹配新的对象ID
-        self.eval_file = os.path.join(self.dataset_dir, "eval", f"object_{object_id}.txt")
-        self.foundation_file = os.path.join(self.dataset_dir, "eval_foundationpose", f"object_{object_id}.txt")
-        
-        # 清除对象位姿列的缓存，因为对象名称可能已改变
+
+        # 更新评估文件路径
+        self.eval_file = os.path.join(
+            self.dataset_dir, "eval", f"object_{object_id}.txt"
+        )
+        print("1111111111111111111111111111111111111111111111111111111111111111111")
+        print(self.eval_file)
+        self.foundation_file = os.path.join(
+            self.dataset_dir, "eval_foundationpose_comp", f"object_{object_id}.txt"
+        )
+        self.bundle_sdf_file = os.path.join(
+            self.dataset_dir, "eval_bundlesdf_comp", f"object_{object_id}.txt"
+        )
+
+        # 清缓存
         if hasattr(self, 'obj_cols'):
             delattr(self, 'obj_cols')
-        
-        # 重置转换矩阵标志，以便基于新对象重新计算
+
         self.first_flag = False
         self.obj_transformation = None
         self.camera_transformation = None
-        
-        # 重新读取估计的姿态数据，因为eval_file可能已改变
+
+        # 重新读取数据
         self.estimated_poses, self.evaluation_segments = self.read_estimated_poses()
         self.foundation_poses = self.read_foundation_poses()
+        self.bundle_sdf_poses = self.read_bundle_sdf_poses()
+
         print(f"评估对象: {object_name} (ID: {object_id})")
         print(f"使用评估文件: {self.eval_file}")
 
-        if self.has_offset == False:
+        if not self.has_offset:
             self.mocap_start_time_offset = self.find_mocap_start_time_offset()
             self.has_offset = True
 
-        all_results = []
-        
+        # ========== 分段评估（同段内三方法一起算，再统一丢帧） ==========
+        all_results_ours = []
+        all_results_fp = []
+        all_results_bs = []
+
+        total_dropped = 0
+
         for i, segment in enumerate(self.evaluation_segments):
-            print(f"\n评估段 {i+1}/{len(self.evaluation_segments)}")
-            # results, _ = self.evaluate_segment_foundation_pose(segment)
-            results, _ = self.evaluate_segment(segment)
-            if results:
-                all_results.append(results)
-                
-                # 打印段结果
-                print(f"段 {i+1} 结果:")
-                print(f"帧数: {results['total_frames']}")
-                print(f"ADD 平均值: {results['add_mean']:.4f}")
-                print(f"ADD-S 平均值: {results['adds_mean']:.4f}")
-                print(f"ADD 成功率: {results['add_success_rate']*100:.2f}%")
-                print(f"ADD-S 成功率: {results['adds_success_rate']*100:.2f}%")
-        
-        # 计算总体结果
-        if all_results:
-            total_frames = sum(r['total_frames'] for r in all_results)
-            add_correct = sum(r['add_correct'] for r in all_results)
-            adds_correct = sum(r['adds_correct'] for r in all_results)
-            
-            all_add_values = []
-            all_adds_values = []
-            for r in all_results:
-                all_add_values.extend(r['add_values'])
-                all_adds_values.extend(r['adds_values'])
-            
-            print("\n总体结果:")
-            print(f"总帧数: {total_frames}")
-            print(f"ADD 平均值: {np.mean(all_add_values):.4f}")
-            print(f"ADD-S 平均值: {np.mean(all_adds_values):.4f}")
-            print(f"ADD 成功率: {add_correct/total_frames*100:.2f}%")
-            print(f"ADD-S 成功率: {adds_correct/total_frames*100:.2f}%")
-            
-            # 保存结果到文件
-            self.save_results({
-                'total_frames': total_frames,
-                'add_mean': float(np.mean(all_add_values)),
-                'adds_mean': float(np.mean(all_adds_values)),
-                'add_success_rate': float(add_correct/total_frames),
-                'adds_success_rate': float(adds_correct/total_frames)
+            print(f"\n评估段 {i + 1}/{len(self.evaluation_segments)}")
+
+            # 每段都重新对齐各自的坐标系（沿用你原逻辑）
+            self.first_flag = False
+            res_ours, _ = self.evaluate_segment(segment)
+
+            self.first_flag = False
+            res_fp, _ = self.evaluate_segment_foundation_pose(segment)
+
+            self.first_flag = False
+            res_bs, _ = self.evaluate_segment_bundle_sdf(segment)
+
+            if not res_ours or not res_fp or not res_bs:
+                continue
+
+            # ✅ 找到GT可能漂移的帧：三方法ADD都>0.05
+            bad_frames = self._find_bad_frames_all_methods(
+                res_ours, res_fp, res_bs, self.drop_frame_threshold
+            )
+            if bad_frames:
+                total_dropped += len(bad_frames)
+                print(f"[DROP] 段{i+1}: 丢弃 {len(bad_frames)} 帧（Ours/FP/BS 的 ADD 全部 > {self.drop_frame_threshold}）")
+
+                # ✅ 三个方法都统一剔除这些帧并重算统计
+                res_ours = self._filter_results_by_bad_frames(res_ours, bad_frames)
+                res_fp   = self._filter_results_by_bad_frames(res_fp, bad_frames)
+                res_bs   = self._filter_results_by_bad_frames(res_bs, bad_frames)
+
+            if res_ours:
+                all_results_ours.append(res_ours)
+            if res_fp:
+                all_results_fp.append(res_fp)
+            if res_bs:
+                all_results_bs.append(res_bs)
+
+        print(f"\n[DROP] 全部 segments 总共丢弃帧数: {total_dropped}")
+
+        # # ========== 分段评估 ==========
+        # all_results_ours = []
+        # all_results_fp = []
+        # all_results_bs = []
+
+        # for i, segment in enumerate(self.evaluation_segments):
+        #     print(f"\n评估段 {i + 1}/{len(self.evaluation_segments)}")
+        #     results_ours, _ = self.evaluate_segment(segment)
+
+        #     if results_ours:
+        #         all_results_ours.append(results_ours)
+
+        # self.first_flag = False
+        # for i, segment in enumerate(self.evaluation_segments):
+        #     print(f"\n评估段 {i + 1}/{len(self.evaluation_segments)}")
+        #     results_fp, _ = self.evaluate_segment_foundation_pose(segment)
+        #     if results_fp:
+        #         all_results_fp.append(results_fp)
+
+        # self.first_flag = False
+        # for i, segment in enumerate(self.evaluation_segments):
+        #     print(f"\n评估段 {i + 1}/{len(self.evaluation_segments)}")
+
+        #     results_bs, _ = self.evaluate_segment_bundle_sdf(segment)
+
+        #     if results_bs:
+        #         all_results_bs.append(results_bs)
+
+        # ========== 汇总 ==========
+        rows = []
+
+        ours_summary = self.aggregate_results(
+            object_id, object_name, "Ours", all_results_ours
+        )
+        fp_summary = self.aggregate_results(
+            object_id, object_name, "FoundationPose", all_results_fp
+        )
+        bs_summary = self.aggregate_results(
+            object_id, object_name, "BundleSDF", all_results_bs
+        )
+
+        rows.extend([ours_summary, fp_summary, bs_summary])
+
+        # ========== 写 CSV ==========
+        self.save_results_csv(rows)
+
+
+    def aggregate_results(self, object_id, object_name, method, all_results):
+        """
+        返回一行可写入CSV的 dict
+        """
+        row = {
+            "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "dataset": self.dataset_dir,
+            "object_id": int(object_id),
+            "object_name": object_name,
+            "method": method,
+            "num_segments": len(all_results),
+        }
+
+        if not all_results:
+            # 没结果也写一行，方便排查
+            row.update({
+                "total_frames": 0,
+                "add_mean": "",
+                "adds_mean": "",
+                "add_success_rate": "",
+                "adds_success_rate": "",
             })
+            return row
+
+        total_frames = sum(r["total_frames"] for r in all_results)
+        add_correct = sum(r["add_correct"] for r in all_results)
+        adds_correct = sum(r["adds_correct"] for r in all_results)
+
+        all_add_values, all_adds_values = [], []
+        for r in all_results:
+            all_add_values.extend(r["add_values"])
+            all_adds_values.extend(r["adds_values"])
+
+        row.update({
+            "total_frames": int(total_frames),
+            "add_mean": float(sum(all_add_values) / len(all_add_values)),
+            "adds_mean": float(sum(all_adds_values) / len(all_adds_values)),
+            "add_success_rate": float(add_correct / total_frames) if total_frames > 0 else "",
+            "adds_success_rate": float(adds_correct / total_frames) if total_frames > 0 else "",
+        })
+        return row
+
+
+    # def aggregate_results(self, object_id, object_name, method_name, results_list):
+    #     """将多个 segment 的结果聚合成一个 summary dict"""
+    #     if not results_list:
+    #         return {
+    #             "object_id": object_id,
+    #             "object_name": object_name,
+    #             "method": method_name,
+    #             "total_frames": 0,
+    #             "add_mean": None,
+    #             "adds_mean": None,
+    #             "add_success_rate": None,
+    #             "adds_success_rate": None,
+    #         }
+
+    #     total_frames = sum(r['total_frames'] for r in results_list)
+    #     add_correct = sum(r['add_correct'] for r in results_list)
+    #     adds_correct = sum(r['adds_correct'] for r in results_list)
+
+    #     all_add_values = []
+    #     all_adds_values = []
+    #     for r in results_list:
+    #         all_add_values.extend(r['add_values'])
+    #         all_adds_values.extend(r['adds_values'])
+
+    #     return {
+    #         "object_id": object_id,
+    #         "object_name": object_name,
+    #         "method": method_name,
+    #         "total_frames": total_frames,
+    #         "add_mean": float(np.mean(all_add_values)),
+    #         "adds_mean": float(np.mean(all_adds_values)),
+    #         "add_success_rate": float(add_correct / total_frames),
+    #         "adds_success_rate": float(adds_correct / total_frames),
+    #     }
+
+
+    # def save_results_csv(self, rows):
+    #     """将多种方法的结果追加写入同一个 CSV 文件"""
+    #     output_file = os.path.join(
+    #         self.dataset_dir, "eval", "evaluation_results.csv"
+    #     )
+    #     file_exists = os.path.isfile(output_file)
+
+    #     with open(output_file, 'a', newline='') as f:
+    #         writer = csv.DictWriter(
+    #             f,
+    #             fieldnames=[
+    #                 "object_id",
+    #                 "object_name",
+    #                 "method",
+    #                 "total_frames",
+    #                 "add_mean",
+    #                 "adds_mean",
+    #                 "add_success_rate",
+    #                 "adds_success_rate",
+    #             ]
+    #         )
+
+    #         if not file_exists:
+    #             writer.writeheader()
+
+    #         for row in rows:
+    #             writer.writerow(row)
+
+    #     print(f"结果已写入 {output_file}")
+    def save_results_csv(self, rows):
+        """
+        rows: List[dict]，每个dict是一行（比如 Ours/FP/BS 三行）
+        """
+        # ✅ 优先写全局CSV；否则退回写当前dataset下的CSV
+        output_file = self.global_csv_path or os.path.join(self.dataset_dir, "eval", "evaluation_results.csv")
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+
+        # 固定列顺序（强烈建议固定，不要动态拼）
+        fieldnames = [
+            "time",
+            "dataset",
+            "object_id",
+            "object_name",
+            "method",
+            "num_segments",
+            "total_frames",
+            "add_mean",
+            "adds_mean",
+            "add_success_rate",
+            "adds_success_rate",
+        ]
+
+        file_exists = os.path.exists(output_file)
+
+        with open(output_file, "a", newline="", encoding="utf-8-sig") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            if not file_exists:
+                writer.writeheader()
+            for row in rows:
+                # 防止缺字段报错
+                safe_row = {k: row.get(k, "") for k in fieldnames}
+                writer.writerow(safe_row)
+
+        print(f"[CSV] 结果已追加写入: {output_file}")
+
+
+
+    # def evaluate(self, object_id, object_name):
+    #     """评估所有时间段"""
+    #     # 更新对象ID和名称
+    #     self.object_id = object_id
+    #     self.object_name = object_name
+        
+    #     # 更新评估文件路径以匹配新的对象ID
+    #     self.eval_file = os.path.join(self.dataset_dir, "eval", f"object_{object_id}.txt")
+    #     self.foundation_file = os.path.join(self.dataset_dir, "eval_foundationpose_comp", f"object_{object_id}.txt")
+    #     self.bundle_sdf_file = os.path.join(self.dataset_dir, "eval_bundlesdf_comp", f"object_{object_id}.txt")
+        
+    #     # 清除对象位姿列的缓存，因为对象名称可能已改变
+    #     if hasattr(self, 'obj_cols'):
+    #         delattr(self, 'obj_cols')
+        
+    #     # 重置转换矩阵标志，以便基于新对象重新计算
+    #     self.first_flag = False
+    #     self.obj_transformation = None
+    #     self.camera_transformation = None
+        
+    #     # 重新读取估计的姿态数据，因为eval_file可能已改变
+    #     self.estimated_poses, self.evaluation_segments = self.read_estimated_poses()
+    #     self.foundation_poses = self.read_foundation_poses()
+    #     self.bundle_sdf_poses = self.read_bundle_sdf_poses()
+    #     print(f"评估对象: {object_name} (ID: {object_id})")
+    #     print(f"使用评估文件: {self.eval_file}")
+
+    #     if self.has_offset == False:
+    #         self.mocap_start_time_offset = self.find_mocap_start_time_offset()
+    #         self.has_offset = True
+
+    #     all_results = []
+        
+    #     for i, segment in enumerate(self.evaluation_segments):
+    #         print(f"\n评估段 {i+1}/{len(self.evaluation_segments)}")
+    #         results_ours, _ = self.evaluate_segment(segment)
+    #         results_fp, _ = self.evaluate_segment_foundation_pose(segment)
+    #         results_bs, _ = self.evaluate_segment_bundle_sdf(segment)
+
+    #         if results_ours:
+    #             all_results.append(results_ours)
+                
+    #             # 打印段结果
+    #             print(f"段 {i+1} 结果:")
+    #             print(f"帧数: {results_ours['total_frames']}")
+    #             print(f"ADD 平均值: {results_ours['add_mean']:.4f}")
+    #             print(f"ADD-S 平均值: {results_ours['adds_mean']:.4f}")
+    #             print(f"ADD 成功率: {results_ours['add_success_rate']*100:.2f}%")
+    #             print(f"ADD-S 成功率: {results_ours['adds_success_rate']*100:.2f}%")
+        
+    #     # 计算总体结果
+    #     if all_results:
+    #         total_frames = sum(r['total_frames'] for r in all_results)
+    #         add_correct = sum(r['add_correct'] for r in all_results)
+    #         adds_correct = sum(r['adds_correct'] for r in all_results)
             
-    def save_results(self, results):
-        """保存评估结果到文件"""
-        output_file = os.path.join(self.dataset_dir, "eval", "evaluation_results.json")
-        with open(output_file, 'w') as f:
-            json.dump(results, f, indent=2)
-        print(f"结果已保存到 {output_file}")
+    #         all_add_values = []
+    #         all_adds_values = []
+    #         for r in all_results:
+    #             all_add_values.extend(r['add_values'])
+    #             all_adds_values.extend(r['adds_values'])
+            
+    #         print("\n总体结果:")
+    #         print(f"总帧数: {total_frames}")
+    #         print(f"ADD 平均值: {np.mean(all_add_values):.4f}")
+    #         print(f"ADD-S 平均值: {np.mean(all_adds_values):.4f}")
+    #         print(f"ADD 成功率: {add_correct/total_frames*100:.2f}%")
+    #         print(f"ADD-S 成功率: {adds_correct/total_frames*100:.2f}%")
+            
+    #         # 保存结果到文件
+    #         self.save_results({
+    #             'total_frames': total_frames,
+    #             'add_mean': float(np.mean(all_add_values)),
+    #             'adds_mean': float(np.mean(all_adds_values)),
+    #             'add_success_rate': float(add_correct/total_frames),
+    #             'adds_success_rate': float(adds_correct/total_frames)
+    #         })
+            
+    # def save_results(self, results):
+    #     """保存评估结果到文件"""
+    #     output_file = os.path.join(self.dataset_dir, "eval", "evaluation_results.json")
+    #     with open(output_file, 'w') as f:
+    #         json.dump(results, f, indent=2)
+    #     print(f"结果已保存到 {output_file}")
 
 
 def main():

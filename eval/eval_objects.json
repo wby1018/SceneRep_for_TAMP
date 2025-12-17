@@ -1,0 +1,114 @@
+{
+"apple_1": {
+    "2": "apple"
+},
+"apple_2": {
+    "2": "apple"
+},
+"apple_3": {
+    "2": "apple"
+},
+"apple_4": {
+    "3": "apple"
+},
+"apple_5": {
+    "2": "apple"
+},
+
+"block_1": {
+    "4": "wooden_block"
+},
+"block_2": {
+    "4": "wooden_block"
+},
+"block_3": {
+    "3": "wooden_block"
+},
+
+"blue_cup_1": {
+    "2": "blue_cup"
+},
+"blue_cup_2": {
+    "0": "blue_cup"
+},
+"blue_cup_3": {
+    "2": "blue_cup"
+},
+
+"bottle_1": {
+    "2": "yellow_bottle"
+},
+"bottle_2": {
+    "2": "yellow_bottle"
+},
+"bottle_3": {
+    "2": "yellow_bottle"
+},
+"bottle_4": {
+    "2": "yellow_bottle"
+},
+"bottle_5": {
+    "0": "yellow_bottle"
+},
+
+"bowl_1": {
+    "2": "bowl"
+},
+"bowl_2": {
+    "2": "bowl"
+},
+"bowl_3": {
+    "1": "bowl"
+},
+
+"cola_1": {
+    "2": "cola"
+},
+"cola_2": {
+    "2": "cola"
+},
+"cola_3": {
+    "3": "cola"
+},
+
+"pink_cup_1": {
+    "1": "pink_cup"
+},
+"pink_cup_2": {
+    "1": "pink_cup"
+},
+"pink_cup_3": {
+    "2": "pink_cup"
+},
+
+"tomato_1": {
+    "2": "tomato"
+},
+"tomato_2": {
+    "1": "tomato"
+},
+"tomato_3": {
+    "1": "tomato"
+},
+
+"white_basket_1": {
+    "0": "white_basket"
+},
+"white_basket_2": {
+    "2": "white_basket"
+},
+"white_basket_3": {
+    "1": "white_basket"
+},
+
+"wooden_box_1": {
+    "2": "wooden_box"
+},
+"wooden_box_2": {
+    "2": "wooden_box"
+},
+"wooden_box_3": {
+    "2": "wooden_box"
+}
+}
+  

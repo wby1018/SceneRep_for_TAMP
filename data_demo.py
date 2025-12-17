@@ -532,7 +532,7 @@ def run_single_dataset(DATASET_PATH, config):
             )
             # print("camera pose refinement done")
             print(f"camera pose refine statues: {pose_ok}")
-            if pose_ok:
+            if pose_ok and pose_ref_cfg.get('enabled', False):
                 T_offset = T_cw_refined @ np.linalg.inv(T_cw)
                 T_cw = T_cw_refined
                 # print(T_offset)
@@ -623,7 +623,7 @@ def run_single_dataset(DATASET_PATH, config):
             )
             # if idx > 1056: relations = {0: {}, 1: {}, 2: {}, 3: {}, 4: {"contain": [5]}, 5: {"in": [4]}}  # 添加根节点
             obj = find_object_by_id(obj_id_in_ee, objects)
-            if obj is not None:
+            if obj is not None and not has_new_obj:
                 obj.T_eo = None
                 obj.pose_uncertain = True
                 

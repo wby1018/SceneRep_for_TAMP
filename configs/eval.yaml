@@ -46,7 +46,7 @@ tsdf:
     color_method: telea  # telea 或 ns
 
   pose_refine:
-    enabled: true
+    enabled: false
     min_objects: 2
     sample_step: 2
     voxel_size: 0.001

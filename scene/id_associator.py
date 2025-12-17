@@ -233,14 +233,14 @@ def associate_by_id(
                 mask, depth, rgb, K, T_cw_fix, sample_step=1
             )
             if pts.size:
-                objects[oid].add_points(pts, colors=cols)
+                # objects[oid].add_points(pts, colors=cols)
                 objects[oid].latest_observation_pts = pts
                 objects[oid].latest_observation_cls = cols
                 objects[oid].latest_observation_pose = objects[oid].pose_init
                 # print(f"update object latest_observation_pts for {objects[oid].label} {objects[oid].id}")
-            if integrate:
-                objects[oid].tsdf.integrate(color_obj, depth_obj, K,
-                                            np.linalg.inv(T_cw_fix).astype(np.float64))
+            # if integrate:
+            #     objects[oid].tsdf.integrate(color_obj, depth_obj, K,
+            #                                 np.linalg.inv(T_cw_fix).astype(np.float64))
         else:
             # 创建新对象
             has_new_objects = True  # 标记有新物体加入

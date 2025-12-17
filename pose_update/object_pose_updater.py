@@ -253,8 +253,12 @@ def icp_reappear(
         print("[update_obj_pose_icp] target点云太少，跳过ICP")
         return True
     pcd_source = o3d.geometry.PointCloud()
-    pcd_source.points = o3d.utility.Vector3dVector(obj.points_vp.astype(np.float32))
-    pcd_source.colors = o3d.utility.Vector3dVector(obj.colors_vp.astype(np.float32))
+    if len(obj.points_vp) > 0:
+        pcd_source.points = o3d.utility.Vector3dVector(obj.points_vp.astype(np.float32))
+        pcd_source.colors = o3d.utility.Vector3dVector(obj.colors_vp.astype(np.float32))
+    else:
+        pcd_source.points = o3d.utility.Vector3dVector(obj.latest_observation_pts.astype(np.float32))
+        pcd_source.colors = o3d.utility.Vector3dVector(obj.latest_observation_cls.astype(np.float32))
     pcd_source.transform(_invert(obj.pose_init))
     # pcd_source.points = o3d.utility.Vector3dVector(obj.latest_observation_pts.astype(np.float32))
     # pcd_source.colors = o3d.utility.Vector3dVector(obj.latest_observation_cls.astype(np.float32))

@@ -264,6 +264,6 @@ class SceneObject:
             f"SceneObject(label={self._label}, "
             # f"n_obs={len(self.observation_sequence)}, "
             f"n_pts={len(self.points_vp)}, n_pts_total={len(self.points)})"
-            # f"pos_uncertain={self.pose_uncertain}"
+            f"pos_uncertain={self.pose_uncertain}"
             # f"repainted={self.to_be_repaint}"
         )
