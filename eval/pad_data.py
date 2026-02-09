@@ -60,13 +60,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument(
         "--root",
-        default="/media/wby/6d811df4-bde7-479b-ab4c-679222653ea0/dataset_done",
+        default="/media/wby/6d811df4-bde7-479b-ab4c-679222653ea0/dataset_done_multi",
         help="dataset_done root",
     )
     args = ap.parse_args()
     root = os.path.abspath(args.root)
 
-    pattern = os.path.join(root, "*", "eval_foundationpose", "object_*.txt")
+    # pattern = os.path.join(root, "*", "eval_foundationpose", "object_*.txt")
+    pattern = os.path.join(root, "*", "eval_bundlesdf", "object_*.txt")
     src_files = sorted(glob.glob(pattern))
 
     if not src_files:
@@ -78,7 +79,8 @@ def main():
         base = os.path.basename(src)                     # object_X.txt
 
         eval_file = os.path.join(seq_dir, "eval", base)
-        dst_dir = os.path.join(seq_dir, "eval_foundationpose_comp")
+        # dst_dir = os.path.join(seq_dir, "eval_foundationpose_comp")
+        dst_dir = os.path.join(seq_dir, "eval_bundlesdf_comp")
         os.makedirs(dst_dir, exist_ok=True)
         dst = os.path.join(dst_dir, base)
 

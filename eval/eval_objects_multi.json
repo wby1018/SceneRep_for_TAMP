@@ -1,0 +1,89 @@
+{
+"2apples_basket_1": {
+    "2": "apple1",
+    "3": "apple2",
+    "4": "white_basket"
+},
+"2apples_basket_3": {
+    "3": "white_basket",
+    "4": "apple1",
+    "5": "apple2"
+},
+
+"apple_bowl_2": {
+    "3": "bowl",
+    "4": "apple"
+},
+"apple_bowl_3": {
+    "3": "apple",
+    "4": "bowl"
+},
+"apple_bowl_4": {
+    "3": "apple",
+    "4": "bowl"
+},
+
+"bottle_box_1": {
+    "3": "yellow_bottle",
+    "4": "wooden_box"
+},
+"bottle_box_2": {
+    "1": "yellow_bottle",
+    "2": "wooden_box"
+},
+"bottle_box_3": {
+    "2": "yellow_bottle",
+    "5": "wooden_box"
+},
+"bottle_box_4": {
+    "2": "yellow_bottle",
+    "3": "wooden_box"
+},
+
+"cup_bottle_basket_1": {
+    "1": "cup",
+    "2": "yellow_bottle",
+    "3": "white_basket"
+},
+"cup_bottle_basket_2": {
+    "2": "yellow_bottle",
+    "3": "cup",
+    "4": "white_basket"
+},
+"cup_bottle_basket_3": {
+    "1": "yellow_bottle",
+    "4": "white_baskett"
+},
+"cup_bottle_basket_4": {
+    "2": "yellow_bottle",
+    "3": "cup",
+    "4": "white_basket"
+},
+"cup_bottle_basket_5": {
+    "2": "cup",
+    "3": "yellow_bottle",
+    "4": "white_basket"
+},
+
+"pink_cup_box_1": {
+    "2": "pink_cup",
+    "3": "wooden_box"
+},
+"pink_cup_box_2": {
+    "2": "pink_cup",
+    "3": "wooden_box"
+},
+"pink_cup_box_3": {
+    "3": "pink_cup",
+    "4": "wooden_box"
+},
+"pink_cup_box_4": {
+    "1": "wooden_box",
+    "3": "pink_cup"
+},
+"pink_cup_box_5": {
+    "3": "pink_cup",
+    "4": "wooden_box"
+}
+}
+  

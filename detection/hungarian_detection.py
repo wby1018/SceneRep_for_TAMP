@@ -34,13 +34,13 @@ NEW_PCD_DIST = 0.05 # 新物体与现有物体点云距离阈值
 NEW_PCD_THRESHOLD = 0.1 # 新物体与现有物体点云重叠度阈值
 NEW_MIN_MASK_AREA = 100 # 新物体掩码面积阈值
 
-HUNGARIAN_THRESHOLD = 0.6 # 与上一帧物体的匈牙利算法匹配阈值
+HUNGARIAN_THRESHOLD = 0.5 # 与上一帧物体的匈牙利算法匹配阈值
 MATCH_HUNGARIAN_THRESHOLD = 0.6 # 与消失物体的匈牙利算法匹配阈值
-DEPTH_RATIO_THRESHOLD = 0.95 # 新物体掩码中有效深度像素的比例阈值
+DEPTH_RATIO_THRESHOLD = 0.75 # 新物体掩码中有效深度像素的比例阈值
 STEP = 1
 object_num = 0
 disappeared_objects = {}
-FIRST_FRAME_THRESH = 0.2
+FIRST_FRAME_THRESH = 0.13
 
 fx = 541.7874545077664
 fy = 538.1475661088576
@@ -674,6 +674,7 @@ def update_detection_obj(json_path, json_new_path, frame_id, match_dict, masks_n
     processed_indices = set()
     processed_masks = []
     ignored_boxes = set()
+    skip_fusion_cache = skip_fusion
 
     for obj_idx, curr_idx in match_dict.items():
         if curr_idx < len(curr_detections) and obj_idx < len(objects):
@@ -699,10 +700,11 @@ def update_detection_obj(json_path, json_new_path, frame_id, match_dict, masks_n
 
             new_detections.append(det)
             processed_masks.append(masks_new[curr_idx])
-            if det["object_id"] in disappeared_objects:
-                del disappeared_objects[det["object_id"]]
+            # if det["object_id"] in disappeared_objects:
+            #     del disappeared_objects[det["object_id"]]
 
     for i, det in enumerate(curr_detections):
+        skip_fusion = skip_fusion_cache
         if i not in processed_indices:
             if "detection" in det:
                 detection_list = det.get("detection", [])
@@ -803,7 +805,7 @@ def update_detection_obj(json_path, json_new_path, frame_id, match_dict, masks_n
     visualize_detections(output_json_file, frame_id, dataset_name, ignored_boxes)
 
 def new_object(det, new_id, masks_new, curr_idx, frame_id, pcds_new, objects, skip_fusion):
-    global object_num, disappeared_objects
+    global object_num
     
     # 如果没有消失的物体记录，则直接分配新ID
     # if not disappeared_objects:

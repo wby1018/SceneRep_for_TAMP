@@ -111,7 +111,7 @@ def get_robot_state(last_state, finger_d, last_finger_d):
         return "idle"
     
     d_diff = finger_d - last_finger_d
-    threshold = 0.001  # 距离变化阈值（米）
+    threshold = 0.002  # 距离变化阈值（米）
     
     if d_diff < -threshold:  # 距离减小，正在夹紧
         return "grasping"
@@ -141,7 +141,7 @@ def get_obj_id_in_ee(T_ew, objects):
         return None
         
     # 定义抓取box的尺寸（米）
-    box_size = np.array([0.1, 0.1, 0.08])  # 长宽高各15cm
+    box_size = np.array([0.11, 0.09, 0.09])  # 长宽高各15cm
     
     # 获取末端执行器在世界坐标系中的位置
     ee_center = T_ew[:3, 3]
@@ -155,7 +155,7 @@ def get_obj_id_in_ee(T_ew, objects):
     # 计算box的8个顶点
     half_size = box_size / 2.0
     box_vertices = []
-    for dx in [-0.1, 1.9]:
+    for dx in [-0.1, 1]:
         for dy in [-1, 1]:
             for dz in [-1, 1]:
                 vertex = ee_center + dx * half_size[0] * ee_x + dy * half_size[1] * ee_y + dz * half_size[2] * ee_z
@@ -388,6 +388,7 @@ def run_single_dataset(DATASET_PATH, config):
         for obj in objects:
             if obj.id == obj_id_in_ee:
                 ee_label = obj.label
+        # print(f"skip_fusion:{skip_fusion}")
         hungarian_detection.process_single_frame(DATASET_PATH, detection_dir, hungarian_dir, int(frame_id), objects, state, skip_fusion,
                                                   config['mask'].get('shrink_kernel_size', 5), hand_mask, ee_label)
         end_time = time.time()

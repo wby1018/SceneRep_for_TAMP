@@ -340,7 +340,7 @@ def icp_reappear(
         cos_theta = (np.trace(R) - 1) / 2
         cos_theta = np.clip(cos_theta, -1.0, 1.0)  # 数值稳定性
         rotation_angle = np.arccos(cos_theta)
-        if translation_distance > 0.05 or rotation_angle > 0.2:
+        if translation_distance > 0.5 or rotation_angle > 0.5:
             print("icp pose change too large, rotation angle: ", {rotation_angle}, "distance:", {translation_distance})
             return False
         if reg.fitness < 0.9:
@@ -509,12 +509,12 @@ def update_obj_pose_icp(
         # )
 
         T_delta = reg.transformation  # source → target
-        T_delta = clamp_rotation(T_delta, max_deg=10.0)
+        # T_delta = clamp_rotation(T_delta, max_deg=10.0)
         # print("[update_obj_pose_icp] ICP T_delta=\n", T_delta)
         print(f"[ICP] fitness={reg.fitness:.8f}, rmse={reg.inlier_rmse:.8f}")
         if reg.fitness < 0.1:
             print("Warning: ICP未收敛，fitness过低！")
-        if reg.inlier_rmse < 0.01:
+        if reg.inlier_rmse < 0.03:
             print("ICP performed")
             obj.pose_cur = obj.pose_cur @ T_delta
             obj.T_oe = _invert(T_cw @ T_ec) @ obj.pose_cur
@@ -698,8 +698,14 @@ def _update_single_child_pose_icp(
         return
     
     pcd_source = o3d.geometry.PointCloud()
-    pcd_source.points = o3d.utility.Vector3dVector(child_obj.points_vp.astype(np.float32))
-    pcd_source.colors = o3d.utility.Vector3dVector(child_obj.colors_vp.astype(np.float32))
+    # pcd_source.points = o3d.utility.Vector3dVector(child_obj.points_vp.astype(np.float32))
+    # pcd_source.colors = o3d.utility.Vector3dVector(child_obj.colors_vp.astype(np.float32))
+    if len(child_obj.points_vp) > 0:
+        pcd_source.points = o3d.utility.Vector3dVector(child_obj.points_vp.astype(np.float32))
+        pcd_source.colors = o3d.utility.Vector3dVector(child_obj.colors_vp.astype(np.float32))
+    else:
+        pcd_source.points = o3d.utility.Vector3dVector(child_obj.latest_observation_pts.astype(np.float32))
+        pcd_source.colors = o3d.utility.Vector3dVector(child_obj.latest_observation_cls.astype(np.float32))
     pcd_source.transform(_invert(child_obj.pose_init))
     # pcd_source.points = o3d.utility.Vector3dVector(obj.latest_observation_pts.astype(np.float32))
     # pcd_source.colors = o3d.utility.Vector3dVector(obj.latest_observation_cls.astype(np.float32))

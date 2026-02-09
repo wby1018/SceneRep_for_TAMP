@@ -2,7 +2,7 @@
 
 # 数据集路径
 dataset:
-  path: "/media/wby/6d811df4-bde7-479b-ab4c-679222653ea0/datasets"
+  path: "/media/wby/6d811df4-bde7-479b-ab4c-679222653ea0/dataset_hard"
 
 
 # 掩码提取配置
@@ -24,7 +24,7 @@ mask:
   # 图像处理参数
   clear_bottom_ratio: 0.3     # 清除画面最下方的比例（0.1表示10%）
   shrink_mask: false            # 是否缩小mask以避免桌面噪声
-  shrink_kernel_size: 0       # 腐蚀核大小（奇数，越大缩小越多）
+  shrink_kernel_size: 5       # 腐蚀核大小（奇数，越大缩小越多）
   dilate_kernel_size: 19  # 或任何你需要的值
 
 # 相机内参

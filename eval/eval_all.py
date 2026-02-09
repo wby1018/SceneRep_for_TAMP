@@ -158,6 +158,12 @@ class PoseEvaluator:
 
         
         # ADD和ADD-S的阈值（单位：米）
+
+        # === multi-threshold settings ===
+        # 单位：米（你也可以改成你想要的列表）
+        self.add_thresholds = np.arange(0.001, 0.051, 0.001).tolist()
+        self.adds_thresholds = np.arange(0.001, 0.051, 0.001).tolist()
+
         self.add_threshold = 0.02
         self.adds_threshold = 0.02
         
@@ -864,9 +870,10 @@ class PoseEvaluator:
         )
         mocap_pose, mocap_head_pose = self.extract_mocap_pose(nearest_idx)
 
-        T_hb = np.linalg.inv(self.base_poses[first_frame_idx]) @ self.mocap_robot @ mocap_head_pose
+        # T_hb = np.linalg.inv(self.base_poses[first_frame_idx]) @ self.mocap_robot @ mocap_head_pose
+        T_HB_FILE = "/home/wby/baselines/SR_TAMP/eval/transform_hb_matrix_apple1.txt"
         # np.savetxt(T_HB_FILE, T_hb)
-        # T_hb = np.loadtxt(T_HB_FILE)
+        T_hb = np.loadtxt(T_HB_FILE)
         T_oc = np.linalg.inv(self.camera_poses[first_frame_idx]) @ self.estimated_poses[first_frame_idx]['transform']
         T_cw = (self.mocap_robot @ mocap_head_pose @ np.linalg.inv(T_hb)) @ np.linalg.inv(self.base_poses[first_frame_idx]) @ self.camera_poses[first_frame_idx]
         T_ow = T_cw @ T_oc
@@ -904,9 +911,10 @@ class PoseEvaluator:
         )
         mocap_pose, mocap_head_pose = self.extract_mocap_pose(nearest_idx)
 
-        T_hb = np.linalg.inv(self.base_poses[first_frame_idx]) @ self.mocap_robot @ mocap_head_pose
+        # T_hb = np.linalg.inv(self.base_poses[first_frame_idx]) @ self.mocap_robot @ mocap_head_pose
+        T_HB_FILE = "/home/wby/baselines/SR_TAMP/eval/transform_hb_matrix_apple1.txt"
         # np.savetxt(T_HB_FILE, T_hb)
-        # T_hb = np.loadtxt(T_HB_FILE)
+        T_hb = np.loadtxt(T_HB_FILE)
         T_oc = self.foundation_poses[first_frame_idx]['transform']
         T_cw = (self.mocap_robot @ mocap_head_pose @ np.linalg.inv(T_hb)) @ np.linalg.inv(self.base_poses[first_frame_idx]) @ self.camera_poses[first_frame_idx]
         T_ow = T_cw @ T_oc
@@ -943,9 +951,10 @@ class PoseEvaluator:
         )
         mocap_pose, mocap_head_pose = self.extract_mocap_pose(nearest_idx)
 
-        T_hb = np.linalg.inv(self.base_poses[first_frame_idx]) @ self.mocap_robot @ mocap_head_pose
+        # T_hb = np.linalg.inv(self.base_poses[first_frame_idx]) @ self.mocap_robot @ mocap_head_pose
+        T_HB_FILE = "/home/wby/baselines/SR_TAMP/eval/transform_hb_matrix_apple1.txt"
         # np.savetxt(T_HB_FILE, T_hb)
-        # T_hb = np.loadtxt(T_HB_FILE)
+        T_hb = np.loadtxt(T_HB_FILE)
         T_oc = self.bundle_sdf_poses[first_frame_idx]['transform']
         T_cw = (self.mocap_robot @ mocap_head_pose @ np.linalg.inv(T_hb)) @ np.linalg.inv(self.base_poses[first_frame_idx]) @ self.camera_poses[first_frame_idx]
         T_ow = T_cw @ T_oc
@@ -1236,6 +1245,8 @@ class PoseEvaluator:
             # 将动捕姿态转换到估计坐标系
             gt_obj_pose = self.mocap_robot @ mocap_obj_pose @ self.obj_transformation
             gt_cam_pose = self.mocap_robot @ mocap_cam_pose @ self.camera_transformation
+            # gt_obj_pose = self.mocap_robot @ mocap_obj_pose
+            # gt_cam_pose = self.mocap_robot @ mocap_cam_pose
             est_cam_pose = self.camera_poses[frame_idx]
             # gt_obj_pose = self.mocap_robot @ mocap_obj_pose
             # gt_cam_pose = self.mocap_robot @ mocap_cam_pose
@@ -1696,11 +1707,12 @@ class PoseEvaluator:
         # ========== 写 CSV ==========
         self.save_results_csv(rows)
 
+    def _thr_key_mm(self, prefix: str, thr_m: float) -> str:
+        # 用毫米当列名更稳（避免 0.0100000002 这种）
+        mm = int(round(thr_m * 1000))
+        return f"{prefix}_{mm}mm"   # 例如 add_sr_20mm
 
     def aggregate_results(self, object_id, object_name, method, all_results):
-        """
-        返回一行可写入CSV的 dict
-        """
         row = {
             "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "dataset": self.dataset_dir,
@@ -1711,7 +1723,6 @@ class PoseEvaluator:
         }
 
         if not all_results:
-            # 没结果也写一行，方便排查
             row.update({
                 "total_frames": 0,
                 "add_mean": "",
@@ -1719,102 +1730,129 @@ class PoseEvaluator:
                 "add_success_rate": "",
                 "adds_success_rate": "",
             })
+            # 多阈值列也补空（保证写 CSV 不缺字段）
+            for thr in self.add_thresholds:
+                row[self._thr_key_mm("add_sr", thr)] = ""
+            for thr in self.adds_thresholds:
+                row[self._thr_key_mm("adds_sr", thr)] = ""
             return row
 
         total_frames = sum(r["total_frames"] for r in all_results)
-        add_correct = sum(r["add_correct"] for r in all_results)
-        adds_correct = sum(r["adds_correct"] for r in all_results)
 
         all_add_values, all_adds_values = [], []
         for r in all_results:
             all_add_values.extend(r["add_values"])
             all_adds_values.extend(r["adds_values"])
 
+        # === 默认阈值成功率（兼容你原列） ===
+        add_correct_default = sum(1 for a in all_add_values if a < self.add_threshold)
+        adds_correct_default = sum(1 for s in all_adds_values if s < self.adds_threshold)
+
         row.update({
             "total_frames": int(total_frames),
-            "add_mean": float(sum(all_add_values) / len(all_add_values)),
-            "adds_mean": float(sum(all_adds_values) / len(all_adds_values)),
-            "add_success_rate": float(add_correct / total_frames) if total_frames > 0 else "",
-            "adds_success_rate": float(adds_correct / total_frames) if total_frames > 0 else "",
+            "add_mean": float(np.mean(all_add_values)) if total_frames > 0 else "",
+            "adds_mean": float(np.mean(all_adds_values)) if total_frames > 0 else "",
+            "add_success_rate": float(add_correct_default / total_frames) if total_frames > 0 else "",
+            "adds_success_rate": float(adds_correct_default / total_frames) if total_frames > 0 else "",
         })
+
+        # === 多阈值成功率（追加到 row 末尾） ===
+        for thr in self.add_thresholds:
+            row[self._thr_key_mm("add_sr", thr)] = float(
+                sum(1 for a in all_add_values if a < thr) / total_frames
+            ) if total_frames > 0 else ""
+
+        for thr in self.adds_thresholds:
+            row[self._thr_key_mm("adds_sr", thr)] = float(
+                sum(1 for s in all_adds_values if s < thr) / total_frames
+            ) if total_frames > 0 else ""
+
         return row
 
 
-    # def aggregate_results(self, object_id, object_name, method_name, results_list):
-    #     """将多个 segment 的结果聚合成一个 summary dict"""
-    #     if not results_list:
-    #         return {
-    #             "object_id": object_id,
-    #             "object_name": object_name,
-    #             "method": method_name,
-    #             "total_frames": 0,
-    #             "add_mean": None,
-    #             "adds_mean": None,
-    #             "add_success_rate": None,
-    #             "adds_success_rate": None,
-    #         }
-
-    #     total_frames = sum(r['total_frames'] for r in results_list)
-    #     add_correct = sum(r['add_correct'] for r in results_list)
-    #     adds_correct = sum(r['adds_correct'] for r in results_list)
-
-    #     all_add_values = []
-    #     all_adds_values = []
-    #     for r in results_list:
-    #         all_add_values.extend(r['add_values'])
-    #         all_adds_values.extend(r['adds_values'])
-
-    #     return {
-    #         "object_id": object_id,
+    # def aggregate_results(self, object_id, object_name, method, all_results):
+    #     """
+    #     返回一行可写入CSV的 dict
+    #     """
+    #     row = {
+    #         "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    #         "dataset": self.dataset_dir,
+    #         "object_id": int(object_id),
     #         "object_name": object_name,
-    #         "method": method_name,
-    #         "total_frames": total_frames,
-    #         "add_mean": float(np.mean(all_add_values)),
-    #         "adds_mean": float(np.mean(all_adds_values)),
-    #         "add_success_rate": float(add_correct / total_frames),
-    #         "adds_success_rate": float(adds_correct / total_frames),
+    #         "method": method,
+    #         "num_segments": len(all_results),
     #     }
+
+    #     if not all_results:
+    #         # 没结果也写一行，方便排查
+    #         row.update({
+    #             "total_frames": 0,
+    #             "add_mean": "",
+    #             "adds_mean": "",
+    #             "add_success_rate": "",
+    #             "adds_success_rate": "",
+    #         })
+    #         return row
+
+    #     total_frames = sum(r["total_frames"] for r in all_results)
+    #     add_correct = sum(r["add_correct"] for r in all_results)
+    #     adds_correct = sum(r["adds_correct"] for r in all_results)
+
+    #     all_add_values, all_adds_values = [], []
+    #     for r in all_results:
+    #         all_add_values.extend(r["add_values"])
+    #         all_adds_values.extend(r["adds_values"])
+
+    #     row.update({
+    #         "total_frames": int(total_frames),
+    #         "add_mean": float(sum(all_add_values) / len(all_add_values)),
+    #         "adds_mean": float(sum(all_adds_values) / len(all_adds_values)),
+    #         "add_success_rate": float(add_correct / total_frames) if total_frames > 0 else "",
+    #         "adds_success_rate": float(adds_correct / total_frames) if total_frames > 0 else "",
+    #     })
+    #     return row
 
 
     # def save_results_csv(self, rows):
-    #     """将多种方法的结果追加写入同一个 CSV 文件"""
-    #     output_file = os.path.join(
-    #         self.dataset_dir, "eval", "evaluation_results.csv"
-    #     )
-    #     file_exists = os.path.isfile(output_file)
+    #     """
+    #     rows: List[dict]，每个dict是一行（比如 Ours/FP/BS 三行）
+    #     """
+    #     # ✅ 优先写全局CSV；否则退回写当前dataset下的CSV
+    #     output_file = self.global_csv_path or os.path.join(self.dataset_dir, "eval", "evaluation_results.csv")
+    #     os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
-    #     with open(output_file, 'a', newline='') as f:
-    #         writer = csv.DictWriter(
-    #             f,
-    #             fieldnames=[
-    #                 "object_id",
-    #                 "object_name",
-    #                 "method",
-    #                 "total_frames",
-    #                 "add_mean",
-    #                 "adds_mean",
-    #                 "add_success_rate",
-    #                 "adds_success_rate",
-    #             ]
-    #         )
+    #     # 固定列顺序（强烈建议固定，不要动态拼）
+    #     fieldnames = [
+    #         "time",
+    #         "dataset",
+    #         "object_id",
+    #         "object_name",
+    #         "method",
+    #         "num_segments",
+    #         "total_frames",
+    #         "add_mean",
+    #         "adds_mean",
+    #         "add_success_rate",
+    #         "adds_success_rate",
+    #     ]
 
+    #     file_exists = os.path.exists(output_file)
+
+    #     with open(output_file, "a", newline="", encoding="utf-8-sig") as f:
+    #         writer = csv.DictWriter(f, fieldnames=fieldnames)
     #         if not file_exists:
     #             writer.writeheader()
-
     #         for row in rows:
-    #             writer.writerow(row)
+    #             # 防止缺字段报错
+    #             safe_row = {k: row.get(k, "") for k in fieldnames}
+    #             writer.writerow(safe_row)
 
-    #     print(f"结果已写入 {output_file}")
+    #     print(f"[CSV] 结果已追加写入: {output_file}")
     def save_results_csv(self, rows):
-        """
-        rows: List[dict]，每个dict是一行（比如 Ours/FP/BS 三行）
-        """
-        # ✅ 优先写全局CSV；否则退回写当前dataset下的CSV
         output_file = self.global_csv_path or os.path.join(self.dataset_dir, "eval", "evaluation_results.csv")
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
-        # 固定列顺序（强烈建议固定，不要动态拼）
-        fieldnames = [
+        base_fieldnames = [
             "time",
             "dataset",
             "object_id",
@@ -1828,14 +1866,25 @@ class PoseEvaluator:
             "adds_success_rate",
         ]
 
+        extra_fieldnames = []
+        for thr in self.add_thresholds:
+            extra_fieldnames.append(self._thr_key_mm("add_sr", thr))
+        for thr in self.adds_thresholds:
+            extra_fieldnames.append(self._thr_key_mm("adds_sr", thr))
+
+        fieldnames = base_fieldnames + extra_fieldnames
+
         file_exists = os.path.exists(output_file)
 
         with open(output_file, "a", newline="", encoding="utf-8-sig") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
+
+            # ⚠️注意：如果这个 CSV 以前已经写过旧表头（没有这些新列），继续 append 会导致列对不齐。
+            # 最稳：换个新文件名，比如 global_results_v2.csv
             if not file_exists:
                 writer.writeheader()
+
             for row in rows:
-                # 防止缺字段报错
                 safe_row = {k: row.get(k, "") for k in fieldnames}
                 writer.writerow(safe_row)
 
@@ -1843,90 +1892,6 @@ class PoseEvaluator:
 
 
 
-    # def evaluate(self, object_id, object_name):
-    #     """评估所有时间段"""
-    #     # 更新对象ID和名称
-    #     self.object_id = object_id
-    #     self.object_name = object_name
-        
-    #     # 更新评估文件路径以匹配新的对象ID
-    #     self.eval_file = os.path.join(self.dataset_dir, "eval", f"object_{object_id}.txt")
-    #     self.foundation_file = os.path.join(self.dataset_dir, "eval_foundationpose_comp", f"object_{object_id}.txt")
-    #     self.bundle_sdf_file = os.path.join(self.dataset_dir, "eval_bundlesdf_comp", f"object_{object_id}.txt")
-        
-    #     # 清除对象位姿列的缓存，因为对象名称可能已改变
-    #     if hasattr(self, 'obj_cols'):
-    #         delattr(self, 'obj_cols')
-        
-    #     # 重置转换矩阵标志，以便基于新对象重新计算
-    #     self.first_flag = False
-    #     self.obj_transformation = None
-    #     self.camera_transformation = None
-        
-    #     # 重新读取估计的姿态数据，因为eval_file可能已改变
-    #     self.estimated_poses, self.evaluation_segments = self.read_estimated_poses()
-    #     self.foundation_poses = self.read_foundation_poses()
-    #     self.bundle_sdf_poses = self.read_bundle_sdf_poses()
-    #     print(f"评估对象: {object_name} (ID: {object_id})")
-    #     print(f"使用评估文件: {self.eval_file}")
-
-    #     if self.has_offset == False:
-    #         self.mocap_start_time_offset = self.find_mocap_start_time_offset()
-    #         self.has_offset = True
-
-    #     all_results = []
-        
-    #     for i, segment in enumerate(self.evaluation_segments):
-    #         print(f"\n评估段 {i+1}/{len(self.evaluation_segments)}")
-    #         results_ours, _ = self.evaluate_segment(segment)
-    #         results_fp, _ = self.evaluate_segment_foundation_pose(segment)
-    #         results_bs, _ = self.evaluate_segment_bundle_sdf(segment)
-
-    #         if results_ours:
-    #             all_results.append(results_ours)
-                
-    #             # 打印段结果
-    #             print(f"段 {i+1} 结果:")
-    #             print(f"帧数: {results_ours['total_frames']}")
-    #             print(f"ADD 平均值: {results_ours['add_mean']:.4f}")
-    #             print(f"ADD-S 平均值: {results_ours['adds_mean']:.4f}")
-    #             print(f"ADD 成功率: {results_ours['add_success_rate']*100:.2f}%")
-    #             print(f"ADD-S 成功率: {results_ours['adds_success_rate']*100:.2f}%")
-        
-    #     # 计算总体结果
-    #     if all_results:
-    #         total_frames = sum(r['total_frames'] for r in all_results)
-    #         add_correct = sum(r['add_correct'] for r in all_results)
-    #         adds_correct = sum(r['adds_correct'] for r in all_results)
-            
-    #         all_add_values = []
-    #         all_adds_values = []
-    #         for r in all_results:
-    #             all_add_values.extend(r['add_values'])
-    #             all_adds_values.extend(r['adds_values'])
-            
-    #         print("\n总体结果:")
-    #         print(f"总帧数: {total_frames}")
-    #         print(f"ADD 平均值: {np.mean(all_add_values):.4f}")
-    #         print(f"ADD-S 平均值: {np.mean(all_adds_values):.4f}")
-    #         print(f"ADD 成功率: {add_correct/total_frames*100:.2f}%")
-    #         print(f"ADD-S 成功率: {adds_correct/total_frames*100:.2f}%")
-            
-    #         # 保存结果到文件
-    #         self.save_results({
-    #             'total_frames': total_frames,
-    #             'add_mean': float(np.mean(all_add_values)),
-    #             'adds_mean': float(np.mean(all_adds_values)),
-    #             'add_success_rate': float(add_correct/total_frames),
-    #             'adds_success_rate': float(adds_correct/total_frames)
-    #         })
-            
-    # def save_results(self, results):
-    #     """保存评估结果到文件"""
-    #     output_file = os.path.join(self.dataset_dir, "eval", "evaluation_results.json")
-    #     with open(output_file, 'w') as f:
-    #         json.dump(results, f, indent=2)
-    #     print(f"结果已保存到 {output_file}")
 
 
 def main():
