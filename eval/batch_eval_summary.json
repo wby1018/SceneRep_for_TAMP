@@ -1,259 +1,223 @@
 [
   {
-    "dataset": "2apples_basket_1",
+    "dataset": "apple_1",
     "object_id": 2,
-    "object_name": "apple1",
+    "object_name": "apple",
+    "results": {
+      "total_frames": 161,
+      "add_mean": 0.007328787297343379,
+      "adds_mean": 0.0035742600743455684,
+      "add_success_rate": 0.9937888198757764,
+      "adds_success_rate": 1.0
+    }
+  },
+  {
+    "dataset": "apple_2",
+    "object_id": 2,
+    "object_name": "apple",
     "results": null
   },
   {
-    "dataset": "2apples_basket_1",
+    "dataset": "apple_3",
+    "object_id": 2,
+    "object_name": "apple",
+    "results": {
+      "total_frames": 496,
+      "add_mean": 0.21115677419599427,
+      "adds_mean": 0.1995860663978228,
+      "add_success_rate": 0.6512096774193549,
+      "adds_success_rate": 0.655241935483871
+    }
+  },
+  {
+    "dataset": "apple_4",
     "object_id": 3,
-    "object_name": "apple2",
+    "object_name": "apple",
     "results": null
   },
   {
-    "dataset": "2apples_basket_1",
+    "dataset": "apple_5",
+    "object_id": 2,
+    "object_name": "apple",
+    "results": null
+  },
+  {
+    "dataset": "block_1",
     "object_id": 4,
-    "object_name": "white_basket",
-    "results": null
+    "object_name": "wooden_block",
+    "results": {
+      "total_frames": 354,
+      "add_mean": 0.0029805122518782984,
+      "adds_mean": 0.0016101444493417125,
+      "add_success_rate": 0.9943502824858758,
+      "adds_success_rate": 1.0
+    }
   },
   {
-    "dataset": "2apples_basket_3",
-    "object_id": 3,
-    "object_name": "white_basket",
-    "results": null
-  },
-  {
-    "dataset": "2apples_basket_3",
+    "dataset": "block_2",
     "object_id": 4,
-    "object_name": "apple1",
+    "object_name": "wooden_block",
     "results": null
   },
   {
-    "dataset": "2apples_basket_3",
-    "object_id": 5,
-    "object_name": "apple2",
-    "results": null
-  },
-  {
-    "dataset": "apple_bowl_2",
+    "dataset": "block_3",
     "object_id": 3,
+    "object_name": "wooden_block",
+    "results": null
+  },
+  {
+    "dataset": "blue_cup_1",
+    "object_id": 2,
+    "object_name": "blue_cup",
+    "results": null
+  },
+  {
+    "dataset": "blue_cup_2",
+    "object_id": 0,
+    "object_name": "blue_cup",
+    "results": null
+  },
+  {
+    "dataset": "blue_cup_3",
+    "object_id": 2,
+    "object_name": "blue_cup",
+    "results": null
+  },
+  {
+    "dataset": "bottle_1",
+    "object_id": 2,
+    "object_name": "yellow_bottle",
+    "results": null
+  },
+  {
+    "dataset": "bottle_2",
+    "object_id": 2,
+    "object_name": "yellow_bottle",
+    "results": null
+  },
+  {
+    "dataset": "bottle_3",
+    "object_id": 2,
+    "object_name": "yellow_bottle",
+    "results": null
+  },
+  {
+    "dataset": "bottle_4",
+    "object_id": 2,
+    "object_name": "yellow_bottle",
+    "results": null
+  },
+  {
+    "dataset": "bottle_5",
+    "object_id": 0,
+    "object_name": "yellow_bottle",
+    "results": null
+  },
+  {
+    "dataset": "bowl_1",
+    "object_id": 2,
     "object_name": "bowl",
     "results": null
   },
   {
-    "dataset": "apple_bowl_2",
-    "object_id": 4,
-    "object_name": "apple1",
-    "results": null
-  },
-  {
-    "dataset": "apple_bowl_3",
-    "object_id": 3,
-    "object_name": "apple1",
-    "results": null
-  },
-  {
-    "dataset": "apple_bowl_3",
-    "object_id": 4,
+    "dataset": "bowl_2",
+    "object_id": 2,
     "object_name": "bowl",
     "results": null
   },
   {
-    "dataset": "apple_bowl_4",
-    "object_id": 3,
-    "object_name": "apple1",
-    "results": null
-  },
-  {
-    "dataset": "apple_bowl_4",
-    "object_id": 4,
+    "dataset": "bowl_3",
+    "object_id": 1,
     "object_name": "bowl",
     "results": null
   },
   {
-    "dataset": "bottle_box_1",
+    "dataset": "cola_1",
+    "object_id": 2,
+    "object_name": "cola",
+    "results": null
+  },
+  {
+    "dataset": "cola_2",
+    "object_id": 2,
+    "object_name": "cola",
+    "results": null
+  },
+  {
+    "dataset": "cola_3",
     "object_id": 3,
-    "object_name": "yellow_bottle",
+    "object_name": "cola",
     "results": null
   },
   {
-    "dataset": "bottle_box_1",
-    "object_id": 4,
-    "object_name": "wooden_box",
-    "results": null
-  },
-  {
-    "dataset": "bottle_box_2",
-    "object_id": 1,
-    "object_name": "yellow_bottle",
-    "results": null
-  },
-  {
-    "dataset": "bottle_box_2",
-    "object_id": 2,
-    "object_name": "wooden_box",
-    "results": null
-  },
-  {
-    "dataset": "bottle_box_3",
-    "object_id": 2,
-    "object_name": "yellow_bottle",
-    "results": null
-  },
-  {
-    "dataset": "bottle_box_3",
-    "object_id": 5,
-    "object_name": "wooden_box",
-    "results": null
-  },
-  {
-    "dataset": "bottle_box_4",
-    "object_id": 2,
-    "object_name": "yellow_bottle",
-    "results": null
-  },
-  {
-    "dataset": "bottle_box_4",
-    "object_id": 3,
-    "object_name": "wooden_box",
-    "results": null
-  },
-  {
-    "dataset": "cup_bottle_basket_1",
+    "dataset": "pink_cup_1",
     "object_id": 1,
     "object_name": "pink_cup",
     "results": null
   },
   {
-    "dataset": "cup_bottle_basket_1",
-    "object_id": 2,
-    "object_name": "yellow_bottle",
-    "results": null
-  },
-  {
-    "dataset": "cup_bottle_basket_1",
-    "object_id": 3,
-    "object_name": "white_basket",
-    "results": null
-  },
-  {
-    "dataset": "cup_bottle_basket_2",
-    "object_id": 2,
-    "object_name": "yellow_bottle",
-    "results": null
-  },
-  {
-    "dataset": "cup_bottle_basket_2",
-    "object_id": 3,
-    "object_name": "pink_cup",
-    "results": null
-  },
-  {
-    "dataset": "cup_bottle_basket_2",
-    "object_id": 4,
-    "object_name": "white_basket",
-    "results": null
-  },
-  {
-    "dataset": "cup_bottle_basket_3",
+    "dataset": "pink_cup_2",
     "object_id": 1,
-    "object_name": "yellow_bottle",
-    "results": null
-  },
-  {
-    "dataset": "cup_bottle_basket_3",
-    "object_id": 4,
-    "object_name": "white_basket",
-    "results": null
-  },
-  {
-    "dataset": "cup_bottle_basket_4",
-    "object_id": 2,
-    "object_name": "yellow_bottle",
-    "results": null
-  },
-  {
-    "dataset": "cup_bottle_basket_4",
-    "object_id": 3,
     "object_name": "pink_cup",
     "results": null
   },
   {
-    "dataset": "cup_bottle_basket_4",
-    "object_id": 4,
-    "object_name": "white_basket",
-    "results": null
-  },
-  {
-    "dataset": "cup_bottle_basket_5",
+    "dataset": "pink_cup_3",
     "object_id": 2,
     "object_name": "pink_cup",
     "results": null
   },
   {
-    "dataset": "cup_bottle_basket_5",
-    "object_id": 3,
-    "object_name": "yellow_bottle",
-    "results": null
-  },
-  {
-    "dataset": "cup_bottle_basket_5",
-    "object_id": 4,
-    "object_name": "white_basket",
-    "results": null
-  },
-  {
-    "dataset": "pink_cup_box_1",
+    "dataset": "tomato_1",
     "object_id": 2,
-    "object_name": "pink_cup",
+    "object_name": "tomato",
     "results": null
   },
   {
-    "dataset": "pink_cup_box_2",
-    "object_id": 2,
-    "object_name": "pink_cup",
-    "results": null
-  },
-  {
-    "dataset": "pink_cup_box_2",
-    "object_id": 3,
-    "object_name": "wooden_box",
-    "results": null
-  },
-  {
-    "dataset": "pink_cup_box_3",
-    "object_id": 3,
-    "object_name": "pink_cup",
-    "results": null
-  },
-  {
-    "dataset": "pink_cup_box_3",
-    "object_id": 4,
-    "object_name": "wooden_box",
-    "results": null
-  },
-  {
-    "dataset": "pink_cup_box_4",
+    "dataset": "tomato_2",
     "object_id": 1,
+    "object_name": "tomato",
+    "results": null
+  },
+  {
+    "dataset": "tomato_3",
+    "object_id": 1,
+    "object_name": "tomato",
+    "results": null
+  },
+  {
+    "dataset": "white_basket_1",
+    "object_id": 0,
+    "object_name": "white_basket",
+    "results": null
+  },
+  {
+    "dataset": "white_basket_2",
+    "object_id": 2,
+    "object_name": "white_basket",
+    "results": null
+  },
+  {
+    "dataset": "white_basket_3",
+    "object_id": 1,
+    "object_name": "white_basket",
+    "results": null
+  },
+  {
+    "dataset": "wooden_box_1",
+    "object_id": 2,
     "object_name": "wooden_box",
     "results": null
   },
   {
-    "dataset": "pink_cup_box_4",
-    "object_id": 3,
-    "object_name": "pink_cup",
+    "dataset": "wooden_box_2",
+    "object_id": 2,
+    "object_name": "wooden_box",
     "results": null
   },
   {
-    "dataset": "pink_cup_box_5",
-    "object_id": 3,
-    "object_name": "pink_cup",
-    "results": null
-  },
-  {
-    "dataset": "pink_cup_box_5",
-    "object_id": 4,
+    "dataset": "wooden_box_3",
+    "object_id": 2,
     "object_name": "wooden_box",
     "results": null
   }
