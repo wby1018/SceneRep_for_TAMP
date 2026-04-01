@@ -27,7 +27,7 @@ OBJECTS = ["apple", "basket", "cup", "can", "tomato", "orange juice plastic bott
 #     'tomato': {'new': 0.2, 'pcd': 0.1},
 #     'bowl': {'new': 0.2, 'pcd': 0.5}
 # }
-NEW_SCORE_THRESHOLD = 0.2 # 认为是新物体的owl分数
+NEW_SCORE_THRESHOLD = 0.4 # 认为是新物体的owl分数
 EE_NEW_SCORE_THRESHOLD = 0.1 # 认为是新物体的owl分数（当手持物体时）
 NEW_HAND_THRESHOLD = 0.95 # 新物体与手部掩码重合度阈值
 NEW_PCD_DIST = 0.05 # 新物体与现有物体点云距离阈值

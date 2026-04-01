@@ -141,7 +141,7 @@ def get_obj_id_in_ee(T_ew, objects):
         return None
         
     # 定义抓取box的尺寸（米）
-    box_size = np.array([0.11, 0.09, 0.09])  # 长宽高各15cm
+    box_size = np.array([0.07, 0.05, 0.05])  # 长宽高各15cm
     
     # 获取末端执行器在世界坐标系中的位置
     ee_center = T_ew[:3, 3]
@@ -291,6 +291,7 @@ def run_single_dataset(DATASET_PATH, config):
     processed_frames = 0
     step = 1
     skip_fusion = False
+    skip_fusion_prev = False
 
     render_queue = {
         "bg": None,  # 背景网格
@@ -362,6 +363,9 @@ def run_single_dataset(DATASET_PATH, config):
                 max_rotation=max_rotation,
                 max_translation=max_translation
             )
+        
+        # 只有在上一帧skip_fusion为True，这一帧skip_fusion为False的时候，should_refine_cam_pose才为True
+        should_refine_cam_pose = skip_fusion_prev and not skip_fusion
         T_cw_prev = T_cw.copy()
 
         hand_mask = generate_hand_mask(T_ec, K, depth.shape, T_lfc, T_rfc, T_joints, depth=depth)
@@ -381,7 +385,7 @@ def run_single_dataset(DATASET_PATH, config):
             T_cw_offset = T_cw
         if holding and objects and obj_id_in_ee is not None:
             update_obj_pose_ee(objects, obj_id_in_ee, T_cw_offset, T_ec)
-            update_child_objects_pose_icp(objects, obj_id_in_ee, relations, T_cw_offset, T_ec, K, masks, rgb, depth)
+            # update_child_objects_pose_icp(objects, obj_id_in_ee, relations, T_cw_offset, T_ec, K, masks, rgb, depth)
         
         start_time = time.time()
         ee_label = "none"
@@ -389,8 +393,8 @@ def run_single_dataset(DATASET_PATH, config):
             if obj.id == obj_id_in_ee:
                 ee_label = obj.label
         # print(f"skip_fusion:{skip_fusion}")
-        hungarian_detection.process_single_frame(DATASET_PATH, detection_dir, hungarian_dir, int(frame_id), objects, state, skip_fusion,
-                                                  config['mask'].get('shrink_kernel_size', 5), hand_mask, ee_label)
+        # hungarian_detection.process_single_frame(DATASET_PATH, detection_dir, hungarian_dir, int(frame_id), objects, state, skip_fusion,
+        #                                           config['mask'].get('shrink_kernel_size', 5), hand_mask, ee_label)
         end_time = time.time()
         print(f"处理帧 {frame_id} 的检测耗时: {end_time - start_time:.2f} 秒")
 
@@ -509,7 +513,11 @@ def run_single_dataset(DATASET_PATH, config):
             pose_ok = False
         else:
             pose_ok = True
-        if pose_ref_cfg.get('enabled', False) and objects and not skip_fusion:
+
+        if idx == 2:
+            should_refine_cam_pose = True
+        
+        if pose_ref_cfg.get('enabled', False) and objects and not skip_fusion and should_refine_cam_pose:
             # print("camera pose refinement start")
             vis = False
             # if idx < 50: vis = False
@@ -588,15 +596,15 @@ def run_single_dataset(DATASET_PATH, config):
             update_obj_pose_ee(objects, obj_id_in_ee, T_cw, T_ec)
             # print("1111111111111111111111111111111111111111111111111111111111111111111111111111")
             # 同时更新子物体的位姿
-            update_child_objects_pose_icp(objects, obj_id_in_ee, relations, T_cw, T_ec, K, masks, rgb, depth)
+            # update_child_objects_pose_icp(objects, obj_id_in_ee, relations, T_cw, T_ec, K, masks, rgb, depth)
 
         if use_icp and objects and obj_id_in_ee is not None:
             update_obj_pose_icp(objects, obj_id_in_ee, T_cw, T_ec, K, masks, rgb, depth)
-            update_child_objects_pose_icp(objects, obj_id_in_ee, relations, T_cw, T_ec, K, masks, rgb, depth)
+            # update_child_objects_pose_icp(objects, obj_id_in_ee, relations, T_cw, T_ec, K, masks, rgb, depth)
         # if state == "releasing" and last_state != "releasing":
 
         # update object pose if its pose is uncertain
-        if state != "releasing" and pose_ok:
+        if state != "releasing" and not skip_fusion:
             for m in masks:
                 obj = find_object_by_id(m.get("id"), objects)
                 if obj is not None and obj.pose_uncertain:
@@ -1093,6 +1101,7 @@ def run_single_dataset(DATASET_PATH, config):
                     pose_nodes.append(scene.add(axis_mesh, pose=axis_pose))
                 mesh_nodes[f"pose{i}"] = pose_nodes
         # print(objects)
+        skip_fusion_prev = skip_fusion
     # ==== run_single_dataset 的最后 ====
 
     # 关闭可视化线程

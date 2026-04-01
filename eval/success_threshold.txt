@@ -1,10 +1,10 @@
-apple: 13
+apple: 14
 block: 11
 blue_cup: 19
 bottle: 22
 bowl: 25
 cola: 18
 pink_cup: 22
-tomato: 11
+tomato: 12
 white_basket: 50
 wooden_box: 29

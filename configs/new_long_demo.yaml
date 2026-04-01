@@ -2,7 +2,7 @@
 
 # 数据集路径
 dataset:
-  path: "/media/wby/2AB9-4188/data_new_long_demo"
+  path: "/home/wby/saves_512g/data_new_long_demo"
 
 # 状态区间定义（有序列表，可重复）
 # 格式: (start, end, state, obj_id_in_ee)
@@ -29,8 +29,8 @@ mask:
   tolerance: 80
   
   # json模式参数
-  detection_dir: "/media/wby/2AB9-4188/data_new_long_demo/detection_boxes"  # 检测结果目录
-  hungarian_dir: "/media/wby/2AB9-4188/data_new_long_demo/detection_h"
+  detection_dir: "/home/wby/saves_512g/data_new_long_demo/detection_boxes"  # 检测结果目录
+  hungarian_dir: "/home/wby/saves_512g/data_new_long_demo/detection_h"
   score_threshold: 0.0        # 检测置信度阈值
 
   # 图像处理参数
@@ -75,7 +75,7 @@ tsdf:
   # Mesh过滤参数
   mesh_filter:
     enabled: true                    # 是否启用mesh过滤
-    trim_ration: 0.05
+    trim_ratio: 0.05
 
 # 可视化参数
 visualization:

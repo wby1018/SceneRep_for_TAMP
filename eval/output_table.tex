@@ -1,0 +1,40 @@
+\begin{table*}[t]
+\centering
+\caption{Detailed Tracking Performance. The best results are highlighted in \colorbox{blue!25}{dark blue}, and the second best in \colorbox{blue!10}{light blue}.}
+\label{tab:detailed_results}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{l | cccc | cccc | cccc | cccc | cccc}
+\toprule
+\textbf{Object} & \multicolumn{4}{c}{TSDF++} & \multicolumn{4}{c}{MidFusion} & \multicolumn{4}{c}{BundleSDF} & \multicolumn{4}{c}{FoundationPose} & \multicolumn{4}{c}{\textbf{\ours}} \\
+ & ADD$\uparrow$ & ADD-S$\uparrow$ & $E_t$$\downarrow$ & $E_R$$\downarrow$ & ADD$\uparrow$ & ADD-S$\uparrow$ & $E_t$$\downarrow$ & $E_R$$\downarrow$ & ADD$\uparrow$ & ADD-S$\uparrow$ & $E_t$$\downarrow$ & $E_R$$\downarrow$ & ADD$\uparrow$ & ADD-S$\uparrow$ & $E_t$$\downarrow$ & $E_R$$\downarrow$ & ADD$\uparrow$ & ADD-S$\uparrow$ & $E_t$$\downarrow$ & $E_R$$\downarrow$ \\
+\midrule
+\multicolumn{21}{c}{\textbf{Single-Object Scenarios}} \\
+\midrule
+Apple & 27.7 & 53.9 & 12.28 & 49.1 & 34.8 & 54.3 & 15.27 & 50.4 & \cellcolor{blue!10}86.3 & \cellcolor{blue!10}96.1 & \cellcolor{blue!10}0.69 & \cellcolor{blue!10}6.4 & 73.4 & 79.6 & 15.51 & 19.1 & \cellcolor{blue!25}89.2 & \cellcolor{blue!25}98.5 & \cellcolor{blue!25}0.59 & \cellcolor{blue!25}5.2 \\
+Blue Cup & 22.4 & 32.4 & 13.71 & 60.4 & 32.1 & 50.5 & 18.34 & 56.5 & \cellcolor{blue!10}91.9 & \cellcolor{blue!25}99.4 & \cellcolor{blue!10}0.62 & \cellcolor{blue!10}7.6 & 26.5 & 53.0 & 56.34 & 48.7 & \cellcolor{blue!25}99.0 & \cellcolor{blue!10}99.3 & \cellcolor{blue!25}0.58 & \cellcolor{blue!25}3.9 \\
+Bowl & 36.7 & 45.2 & 11.56 & 25.8 & 65.5 & 84.5 & 12.16 & 25.5 & \cellcolor{blue!25}92.2 & \cellcolor{blue!25}99.7 & \cellcolor{blue!25}0.84 & \cellcolor{blue!25}7.1 & 59.0 & 97.6 & 23.56 & 20.4 & \cellcolor{blue!10}90.7 & \cellcolor{blue!10}98.8 & \cellcolor{blue!10}0.93 & \cellcolor{blue!10}7.5 \\
+Cola & 17.8 & 27.3 & 13.57 & 72.6 & 25.2 & 32.8 & 95.15 & 72.1 & \cellcolor{blue!25}93.3 & \cellcolor{blue!10}99.5 & \cellcolor{blue!25}0.72 & \cellcolor{blue!10}4.1 & 92.2 & \cellcolor{blue!25}99.8 & 6.05 & 7.6 & \cellcolor{blue!10}93.1 & \cellcolor{blue!25}99.8 & \cellcolor{blue!10}0.83 & \cellcolor{blue!25}2.7 \\
+Pink Cup & 14.1 & 39.8 & 35.60 & 54.6 & 38.6 & 66.1 & 20.33 & 42.2 & \cellcolor{blue!25}99.7 & \cellcolor{blue!10}99.9 & \cellcolor{blue!25}0.48 & \cellcolor{blue!25}4.4 & 22.3 & 48.8 & 84.20 & 69.5 & \cellcolor{blue!10}99.3 & \cellcolor{blue!25}100.0 & \cellcolor{blue!10}0.54 & \cellcolor{blue!10}5.0 \\
+Tomato & 28.0 & 38.5 & 30.79 & 44.2 & 35.9 & 40.6 & 184.50 & 44.2 & \cellcolor{blue!10}63.8 & 73.1 & \cellcolor{blue!10}3.05 & \cellcolor{blue!10}16.6 & 62.8 & \cellcolor{blue!10}78.9 & 20.74 & 23.5 & \cellcolor{blue!25}74.8 & \cellcolor{blue!25}92.6 & \cellcolor{blue!25}0.82 & \cellcolor{blue!25}5.9 \\
+White Basket & 11.2 & \cellcolor{blue!10}61.5 & 37.28 & 46.4 & 31.3 & 44.1 & 77.30 & 55.7 & \cellcolor{blue!25}99.9 & \cellcolor{blue!25}100.0 & \cellcolor{blue!25}0.98 & \cellcolor{blue!25}1.4 & \cellcolor{blue!10}99.8 & \cellcolor{blue!25}100.0 & 3.60 & \cellcolor{blue!10}2.5 & 94.8 & \cellcolor{blue!25}100.0 & \cellcolor{blue!10}2.22 & 5.8 \\
+Wooden Block & 8.1 & 21.1 & 18.93 & 73.2 & 25.2 & 28.9 & 11.04 & 72.1 & 68.4 & \cellcolor{blue!10}87.2 & \cellcolor{blue!10}0.78 & 15.7 & \cellcolor{blue!10}74.3 & 76.6 & 16.00 & \cellcolor{blue!10}13.7 & \cellcolor{blue!25}74.7 & \cellcolor{blue!25}99.1 & \cellcolor{blue!25}0.61 & \cellcolor{blue!25}5.0 \\
+Wooden Box & 18.1 & 40.2 & 25.37 & 53.7 & 44.6 & \cellcolor{blue!10}50.7 & 47.91 & 54.3 & \cellcolor{blue!25}97.9 & \cellcolor{blue!25}100.0 & \cellcolor{blue!10}0.72 & \cellcolor{blue!25}1.0 & \cellcolor{blue!10}97.8 & \cellcolor{blue!25}100.0 & 2.02 & \cellcolor{blue!10}2.2 & \cellcolor{blue!25}97.9 & \cellcolor{blue!25}100.0 & \cellcolor{blue!25}0.60 & 2.6 \\
+Yellow Bottle & 13.0 & 31.3 & 12.51 & 72.4 & 20.1 & 36.6 & 57.30 & 75.0 & \cellcolor{blue!10}94.6 & \cellcolor{blue!10}99.5 & \cellcolor{blue!25}0.77 & \cellcolor{blue!25}4.0 & 76.2 & 82.9 & \cellcolor{blue!10}11.41 & 8.3 & \cellcolor{blue!25}95.2 & \cellcolor{blue!25}99.6 & \cellcolor{blue!25}0.77 & \cellcolor{blue!10}4.4 \\
+\midrule
+\textbf{Avg.} & 19.8 & 39.5 & 20.13 & 55.9 & 34.4 & 48.5 & 51.85 & 55.7 & \cellcolor{blue!10}89.0 & \cellcolor{blue!10}95.7 & \cellcolor{blue!10}0.94 & \cellcolor{blue!10}6.6 & 69.2 & 81.7 & 22.71 & 20.6 & \cellcolor{blue!25}91.0 & \cellcolor{blue!25}98.8 & \cellcolor{blue!25}0.83 & \cellcolor{blue!25}4.8 \\
+\midrule
+\multicolumn{21}{c}{\textbf{Multi-Object Scenarios}} \\
+\midrule
+Apple 1 & 25.0 & 45.8 & 62.97 & 44.9 & 29.2 & 36.0 & 74.64 & 65.4 & \cellcolor{blue!10}55.7 & \cellcolor{blue!10}61.5 & \cellcolor{blue!10}5.06 & \cellcolor{blue!10}17.6 & 50.7 & 56.5 & 24.75 & 20.2 & \cellcolor{blue!25}68.5 & \cellcolor{blue!25}89.0 & \cellcolor{blue!25}1.19 & \cellcolor{blue!25}7.7 \\
+Apple 2 & 21.6 & 44.7 & 17.10 & 28.5 & 38.6 & 44.2 & 38.77 & 56.1 & \cellcolor{blue!25}54.8 & \cellcolor{blue!10}91.2 & \cellcolor{blue!10}1.39 & \cellcolor{blue!25}6.0 & 53.8 & 56.7 & 37.93 & 52.1 & \cellcolor{blue!10}54.0 & \cellcolor{blue!25}94.2 & \cellcolor{blue!25}1.27 & \cellcolor{blue!10}8.0 \\
+Bowl & 36.3 & 53.6 & 10.41 & 22.6 & 67.6 & 79.2 & 10.86 & 17.7 & \cellcolor{blue!25}87.0 & \cellcolor{blue!25}96.7 & \cellcolor{blue!25}0.97 & \cellcolor{blue!10}4.3 & 66.9 & 72.5 & 15.48 & 13.9 & \cellcolor{blue!10}86.5 & \cellcolor{blue!10}96.1 & \cellcolor{blue!10}1.20 & \cellcolor{blue!25}2.4 \\
+Pink Cup & 14.6 & 35.6 & 17.84 & 59.8 & 18.9 & 30.4 & 57.38 & 46.9 & \cellcolor{blue!25}61.7 & \cellcolor{blue!10}85.3 & \cellcolor{blue!10}2.10 & \cellcolor{blue!25}11.4 & 38.4 & 55.2 & 54.81 & 53.1 & \cellcolor{blue!10}58.2 & \cellcolor{blue!25}92.9 & \cellcolor{blue!25}1.58 & \cellcolor{blue!10}14.0 \\
+White Basket & 19.6 & 45.2 & 31.59 & 34.6 & 45.3 & 60.5 & 68.48 & 23.6 & \cellcolor{blue!25}98.4 & \cellcolor{blue!25}100.0 & \cellcolor{blue!25}1.17 & \cellcolor{blue!25}1.8 & \cellcolor{blue!10}91.0 & \cellcolor{blue!10}92.9 & 14.75 & 12.3 & 89.9 & \cellcolor{blue!25}100.0 & \cellcolor{blue!10}1.85 & \cellcolor{blue!10}6.3 \\
+Wooden Box & 17.6 & 29.2 & 19.24 & 48.3 & 37.3 & 48.2 & 84.23 & 50.8 & 73.7 & 81.4 & \cellcolor{blue!10}4.66 & 14.0 & \cellcolor{blue!10}77.5 & \cellcolor{blue!10}88.2 & 15.52 & \cellcolor{blue!10}12.2 & \cellcolor{blue!25}81.9 & \cellcolor{blue!25}99.6 & \cellcolor{blue!25}1.22 & \cellcolor{blue!25}7.4 \\
+Yellow Bottle & 13.8 & 30.6 & 38.14 & 54.6 & 20.9 & 39.0 & 64.71 & 64.6 & \cellcolor{blue!25}79.0 & \cellcolor{blue!25}89.4 & \cellcolor{blue!10}1.75 & \cellcolor{blue!25}9.0 & \cellcolor{blue!10}74.2 & \cellcolor{blue!10}88.5 & 14.58 & \cellcolor{blue!10}15.3 & 63.4 & 87.3 & \cellcolor{blue!25}1.70 & 24.2 \\
+\midrule
+\textbf{Avg.} & 18.9 & 37.8 & 29.28 & 46.7 & 32.6 & 45.1 & 63.61 & 48.1 & \cellcolor{blue!25}74.3 & \cellcolor{blue!10}86.1 & \cellcolor{blue!10}2.59 & \cellcolor{blue!25}9.8 & 65.9 & 75.9 & 25.53 & 24.3 & \cellcolor{blue!10}71.8 & \cellcolor{blue!25}93.9 & \cellcolor{blue!25}1.49 & \cellcolor{blue!10}11.8 \\
+\bottomrule
+\end{tabular}
+}
+\end{table*}

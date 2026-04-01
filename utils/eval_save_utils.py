@@ -13,7 +13,8 @@ class ObjectPoseRecorder:
             base_dir: 记录文件的基础目录
         """
         self.pose_dir = os.path.join(base_dir, "pose_txt")
-        self.eval_dir = os.path.join(base_dir, "eval")
+        # self.eval_dir = os.path.join(base_dir, "eval")
+        self.eval_dir = os.path.join(base_dir, "eval_demo")
         os.makedirs(self.pose_dir, exist_ok=True)
         os.makedirs(self.eval_dir, exist_ok=True)
         for filename in os.listdir(self.eval_dir):

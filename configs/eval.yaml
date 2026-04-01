@@ -2,7 +2,7 @@
 
 # 数据集路径
 dataset:
-  path: "/media/wby/6d811df4-bde7-479b-ab4c-679222653ea0/dataset_hard"
+  path: "/media/wby/6d811df4-bde7-479b-ab4c-679222653ea0/dataset_done_multi"
 
 
 # 掩码提取配置
@@ -46,7 +46,7 @@ tsdf:
     color_method: telea  # telea 或 ns
 
   pose_refine:
-    enabled: false
+    enabled: true
     min_objects: 2
     sample_step: 2
     voxel_size: 0.001
