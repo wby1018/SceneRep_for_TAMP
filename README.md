@@ -34,10 +34,11 @@ python rosbag2dataset/sam/sam.py [dataname]
 
 ## Demo
 
-1. Edit a config file under: configs/[dataname.config]
-2. Run:
+1. Download demo data from huggingface 
+2. Edit file path in config file: configs/demo.yaml
+3. Run:
 ```bash
-python data_demo.py --config configs/[dataname.config]
+python data_demo.py --config configs/demo.yaml
 ```
 
 ## Running Realtime Application with ROS
